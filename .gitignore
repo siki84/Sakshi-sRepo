@@ -4,3 +4,11 @@
 *.jar
 *.war
 *.ear
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+.env*.local
