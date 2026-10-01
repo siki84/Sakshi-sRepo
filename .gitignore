@@ -4,3 +4,12 @@
 *.jar
 *.war
 *.ear
+
+# Job agent: personal data and runtime state stay local
+config.yaml
+profile/resume.md
+profile/details.md
+data/
+__pycache__/
+*.pyc
+.venv/
