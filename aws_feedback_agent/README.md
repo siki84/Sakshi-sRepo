@@ -18,7 +18,10 @@ Each run produces a dated Markdown report in `reports/`. The report covers senti
 
 ## Setup
 
+Requires **Python 3.10 or newer**. The `anthropic` 1.x SDK doesn't support older versions. The Python that ships with macOS is 3.9, so install a newer one first (`brew install python@3.12`, or the installer from python.org).
+
 ```bash
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 export ANTHROPIC_API_KEY=...          # or `ant auth login`
 # Strongly recommended: Reddit blocks or throttles anonymous API traffic.
