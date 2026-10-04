@@ -4,3 +4,7 @@
 *.jar
 *.war
 *.ear
+
+__pycache__/
+*.pyc
+.venv/

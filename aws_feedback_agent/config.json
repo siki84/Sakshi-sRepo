@@ -1,0 +1,31 @@
+{
+  "lookback_days": 30,
+  "seed_subreddits": [
+    "aws", "AWSCertifications", "devops", "sysadmin", "cscareerquestions",
+    "ExperiencedDevs", "amazonemployees", "AmazonFC", "serverless",
+    "Terraform", "kubernetes", "FinOps"
+  ],
+  "topics": {
+    "customer_experience": ["AWS customer experience", "AWS support", "AWS docs", "AWS billing surprise", "AWS UX"],
+    "management_console": ["AWS console", "management console", "console UI", "console redesign", "unified search console"],
+    "amazon_q": ["Amazon Q", "Q Developer", "Q Business", "Amazon Q console", "Q in console"],
+    "starter_home": ["Starter Home", "console home", "new console experience", "console home widgets", "getting started experience"]
+  },
+  "discovery_queries": ["AWS", "Amazon Web Services", "AWS console", "Amazon Q", "cloud computing", "cloud cost"],
+  "influencers": [
+    "Corey Quinn (Last Week in AWS, Duckbill)",
+    "Jeremy Daly (Off-by-none)",
+    "Yan Cui (theburningmonk)",
+    "Forrest Brazeal",
+    "Werner Vogels",
+    "Adrian Cockcroft",
+    "Gergely Orosz (The Pragmatic Engineer)",
+    "Kelsey Hightower"
+  ],
+  "web_sources_hint": [
+    "linkedin.com", "lastweekinaws.com", "duckbillgroup.com", "x.com", "bsky.app",
+    "news.ycombinator.com", "theregister.com", "medium.com", "dev.to"
+  ],
+  "max_posts_per_search": 25,
+  "max_agent_turns": 40
+}

@@ -1,0 +1,36 @@
+name: AWS feedback agent
+
+on:
+  schedule:
+    - cron: "17 13 1 * *"   # monthly, 1st of the month 13:17 UTC
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Lookback window in days"
+        default: "30"
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r aws_feedback_agent/requirements.txt
+      - name: Run agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+        run: python aws_feedback_agent/agent.py --days "${{ github.event.inputs.days || '30' }}"
+      - name: Commit report and updated community list
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add aws_feedback_agent/reports aws_feedback_agent/state
+          git diff --cached --quiet || git commit -m "AWS feedback report $(date -u +%F)"
+          git push
