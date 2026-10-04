@@ -58,9 +58,15 @@ class Reddit:
                 data={"grant_type": "client_credentials"},
                 timeout=30,
             )
-            resp.raise_for_status()
-            self.session.headers["Authorization"] = f"Bearer {resp.json()['access_token']}"
-            self.base = "https://oauth.reddit.com"
+            if resp.ok and "access_token" in resp.json():
+                self.session.headers["Authorization"] = f"Bearer {resp.json()['access_token']}"
+                self.base = "https://oauth.reddit.com"
+            else:
+                print(
+                    f"WARNING: Reddit login failed (HTTP {resp.status_code}). Check REDDIT_CLIENT_ID / "
+                    "REDDIT_CLIENT_SECRET. Falling back to anonymous access, which Reddit may throttle.",
+                    file=sys.stderr,
+                )
 
     def get(self, path: str, params: dict[str, Any]) -> Any:
         for attempt in range(4):
@@ -406,6 +412,11 @@ def main() -> int:
     parser.add_argument("--days", type=int, help="Lookback window in days (default from config.json)")
     parser.add_argument("--quiet", action="store_true", help="Don't log tool calls to stderr")
     args = parser.parse_args()
+
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key and not key.startswith("sk-ant-"):
+        print("ERROR: ANTHROPIC_API_KEY doesn't look like a real key (it should start with sk-ant-).", file=sys.stderr)
+        return 1
 
     cfg = json.loads(CONFIG_PATH.read_text())
     days = args.days or cfg["lookback_days"]
