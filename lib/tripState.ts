@@ -1,4 +1,4 @@
-import type { DestinationState, Trip, TripState } from "./schemas";
+import type { DestinationState, InterestsState, Trip, TripState } from "./schemas";
 
 /** Phases (in order) whose data depends on the destination. */
 const AFTER_DESTINATION = ["discover", "length", "plan"] as const;
@@ -31,4 +31,22 @@ export function withConfirmedDestination(
   const interestsDone = Boolean(trip.state.interests);
   const phase = changed ? (interestsDone ? 3 : 2) : Math.max(trip.phase, 2);
   return { state, phase };
+}
+
+/**
+ * Applying new interests. Discovery is only stale if the *set* of interests changed
+ * (it may need new research); a different mix or requirements just re-ranks it.
+ * Trip length and the plan depend on everything, so they go stale on any change.
+ */
+export function withInterests(trip: Trip, next: InterestsState): { state: Partial<TripState>; phase: number } {
+  const prev = trip.state.interests;
+  const stale = new Set(trip.state.stale);
+  stale.delete("interests");
+  if (prev && JSON.stringify(prev) !== JSON.stringify(next)) {
+    const chipSet = (s: InterestsState) => JSON.stringify([...s.chips].sort());
+    if (trip.state.discover && chipSet(prev) !== chipSet(next)) stale.add("discover");
+    if (trip.state.length) stale.add("length");
+    if (trip.state.plan) stale.add("plan");
+  }
+  return { state: { interests: next, stale: [...stale] }, phase: Math.max(trip.phase, 3) };
 }

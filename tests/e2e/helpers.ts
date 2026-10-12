@@ -35,3 +35,16 @@ export async function newTrip(page: Page) {
   await page.getByRole("button", { name: "+ New trip" }).click();
   await expect(page).toHaveURL(/\/trip\/\w+\/destination$/);
 }
+
+/** Profile + new trip + confirmed Lisbon in May → lands on the interests step. */
+export async function tripAtInterests(page: Page) {
+  await createProfile(page);
+  await newTrip(page);
+  await page.getByLabel("First destination").fill("Lisbon");
+  await page.getByLabel("Month").selectOption({ label: "May" });
+  await page.getByRole("button", { name: "Check fit" }).click();
+  await page.getByRole("button", { name: "Looks right — start research" }).click();
+  await page.getByRole("button", { name: "Choose Lisbon" }).click({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Confirm and pick interests →" }).click();
+  await expect(page).toHaveURL(/\/interests$/);
+}

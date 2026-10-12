@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GROUP_KEYS, type Group } from "./interests";
 
 /**
  * Domain schemas: the single source of truth for what we store and render.
@@ -83,7 +84,7 @@ export type SourceRef = z.infer<typeof SourceRef>;
  */
 export const TripStateSchema = z.object({
   destination: z.lazy(() => DestinationStateSchema).optional(),
-  interests: z.unknown().optional(),
+  interests: z.lazy(() => InterestsStateSchema).optional(),
   discover: z.unknown().optional(),
   length: z.unknown().optional(),
   plan: z.unknown().optional(),
@@ -262,3 +263,42 @@ export const DestinationStateSchema = z.object({
     .nullable(),
 });
 export type DestinationState = z.infer<typeof DestinationStateSchema>;
+
+// ---------- Phase 2: interests ----------
+
+export const GroupSchema = z.enum(GROUP_KEYS as [Group, ...Group[]]);
+
+export const MixSchema = z
+  .object({
+    outdoors: z.number().int().min(0).max(100),
+    city: z.number().int().min(0).max(100),
+    food: z.number().int().min(0).max(100),
+    nightlife: z.number().int().min(0).max(100),
+    wellness: z.number().int().min(0).max(100),
+  })
+  .refine((m) => Object.values(m).reduce((a, b) => a + b, 0) === 100, { message: "Mix must add up to 100%" });
+
+export const RequirementRuleSchema = z.object({
+  /** The traveler's original wording. */
+  text: z.string(),
+  kind: z.enum(["min_count", "max_count", "exclude", "must_include", "time_pref", "other"]),
+  /** Chip key this applies to, if any. */
+  category: z.string().nullable(),
+  count: z.number().int().nullable(),
+  /** A specific named place or experience, e.g. "Louvre" or "sunset sail". */
+  place: z.string().nullable(),
+  /** Short plain-language interpretation shown back to the traveler. */
+  summary: z.string(),
+});
+export type RequirementRule = z.infer<typeof RequirementRuleSchema>;
+
+export const InterestsStateSchema = z.object({
+  chips: z.array(z.string()).min(1),
+  custom: z.array(z.object({ key: z.string(), label: z.string().min(1).max(40), group: GroupSchema })).max(12),
+  mix: MixSchema,
+  requirements: z.array(z.string().trim().min(2).max(200)).max(10),
+  rules: z.array(RequirementRuleSchema),
+  /** Things we changed or noticed while interpreting requirements. */
+  notices: z.array(z.string()).default([]),
+});
+export type InterestsState = z.infer<typeof InterestsStateSchema>;

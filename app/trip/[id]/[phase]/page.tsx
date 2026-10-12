@@ -4,6 +4,7 @@ import { getProfile, getTrip } from "@/lib/repo";
 import { PHASES, type PhaseKey } from "@/lib/schemas";
 import { WizardStepper } from "@/components/WizardStepper";
 import { DestinationStep } from "@/components/destination/DestinationStep";
+import { InterestsStep } from "@/components/interests/InterestsStep";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,11 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
         <h1 className="text-xl font-semibold">{trip.title}</h1>
       </div>
       <WizardStepper tripId={id} current={phase as PhaseKey} reached={trip.phase} stale={trip.state.stale} />
+      {trip.state.stale.includes(phase) && (
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900" role="status">
+          ⚠︎ An earlier step changed since this one was made — refresh it to reflect your latest choices.
+        </p>
+      )}
       {phase === "destination" ? (
         <DestinationStep
           tripId={id}
@@ -47,6 +53,13 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
           units={profile.units}
           passports={profile.passports}
           profileDocs={profile.travelDocs}
+        />
+      ) : phase === "interests" ? (
+        <InterestsStep
+          tripId={id}
+          initial={trip.state.interests ?? null}
+          family={profile.travelers.type === "family"}
+          destinationName={trip.state.destination?.confirmed?.place.name ?? null}
         />
       ) : (
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
