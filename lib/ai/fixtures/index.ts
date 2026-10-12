@@ -1,4 +1,5 @@
 import type { SearchResult } from "../client";
+import { fitAlternativesFixture, fitCompareFixture, fitResearchFixture } from "./fit";
 
 /**
  * MOCK_AI fixtures: canned model output per task, used by tests and offline dev.
@@ -20,6 +21,9 @@ const registry: Record<string, FixtureFn> = {
     queries: ["ping test"],
     searchResults: [{ url: "https://example.com/ping", title: "Ping" }],
   }),
+  "fit-research": fitResearchFixture,
+  "fit-compare": fitCompareFixture,
+  "fit-alternatives": fitAlternativesFixture,
 };
 
 export function registerFixture(task: string, fn: FixtureFn) {

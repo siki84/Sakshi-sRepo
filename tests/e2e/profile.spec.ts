@@ -20,7 +20,7 @@ test("new trip asks for a profile, then continues into the wizard", async ({ pag
   await page.getByRole("button", { name: "Save and continue" }).click();
 
   await expect(page).toHaveURL(/\/trip\/\w+\/destination$/);
-  await expect(page.getByRole("heading", { name: /Step 1: Where/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Where are you thinking of going?" })).toBeVisible();
   // Later steps are locked until earlier ones are confirmed.
   await expect(page.getByRole("link", { name: /Plan/ })).toHaveCount(0);
 

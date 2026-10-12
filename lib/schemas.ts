@@ -58,7 +58,7 @@ export type SourceRef = z.infer<typeof SourceRef>;
  * phase payload shapes are tightened as each milestone lands.
  */
 export const TripStateSchema = z.object({
-  destination: z.unknown().optional(),
+  destination: z.lazy(() => DestinationStateSchema).optional(),
   interests: z.unknown().optional(),
   discover: z.unknown().optional(),
   length: z.unknown().optional(),
@@ -78,3 +78,137 @@ export type Trip = {
   createdAt: string;
   updatedAt: string;
 };
+
+// ---------- Phase 1: destination fit ----------
+
+export const TimingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("month"), month: z.number().int().min(1).max(12) }),
+  z.object({
+    kind: z.literal("dates"),
+    start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }),
+]);
+export type Timing = z.infer<typeof TimingSchema>;
+
+export const PlaceSchema = z.object({
+  query: z.string(),
+  name: z.string(), // short display name, e.g. "Lisbon, Portugal"
+  lat: z.number(),
+  lng: z.number(),
+  countryCode: z.string().length(2).nullable(),
+});
+export type Place = z.infer<typeof PlaceSchema>;
+
+export const ClimateSchema = z.object({
+  source: z.enum(["normals", "forecast"]),
+  /** e.g. "July, 2016–2025" or "Forecast for Oct 14–18" */
+  basis: z.string(),
+  avgHighF: z.number(),
+  avgLowF: z.number(),
+  rainyDaysPerMonth: z.number(), // days with ≥1 mm, scaled to 30 days
+  precipMmPerMonth: z.number(),
+  dewPointF: z.number().nullable(),
+  humidityPct: z.number().nullable(),
+  daylightHours: z.number().nullable(),
+  sunshineHours: z.number().nullable(),
+});
+export type Climate = z.infer<typeof ClimateSchema>;
+
+export const FitLabel = z.enum(["great", "good", "mixed", "poor"]);
+export type FitLabel = z.infer<typeof FitLabel>;
+
+export const WeatherFitSchema = z.object({
+  score: z.number(), // 0–100
+  label: FitLabel,
+  reasons: z.array(z.object({ tone: z.enum(["good", "bad", "neutral"]), text: z.string() })),
+});
+export type WeatherFit = z.infer<typeof WeatherFitSchema>;
+
+export const VisaStatus = z.enum([
+  "visa_free",
+  "evisa",
+  "eta",
+  "visa_on_arrival",
+  "visa_required",
+  "not_allowed",
+  "unknown",
+]);
+export type VisaStatus = z.infer<typeof VisaStatus>;
+
+export const FitCardSchema = z.object({
+  place: PlaceSchema,
+  climate: ClimateSchema.nullable(),
+  weatherFit: WeatherFitSchema.nullable(),
+  weatherVerdict: z.string(),
+  vibe: z.string(),
+  season: z.object({
+    level: z.enum(["peak", "shoulder", "off"]),
+    crowds: z.enum(["low", "moderate", "high", "very_high"]),
+    prices: z.enum(["low", "moderate", "high", "very_high"]),
+    summary: z.string(),
+    sources: z.array(SourceRef),
+  }),
+  events: z.array(
+    z.object({
+      name: z.string(),
+      kind: z.enum(["festival", "holiday", "closure", "weather_hazard", "seasonal_activity", "other"]),
+      impact: z.enum(["positive", "negative", "neutral"]),
+      when: z.string(),
+      detail: z.string(),
+      sources: z.array(SourceRef),
+    }),
+  ),
+  /** null for domestic trips (destination is a passport country). */
+  visa: z
+    .object({
+      best: z.object({
+        passport: z.string(),
+        status: VisaStatus,
+        maxStay: z.string().nullable(),
+        leadTime: z.string().nullable(),
+        notes: z.string(),
+      }),
+      perPassport: z.array(
+        z.object({
+          passport: z.string(),
+          status: VisaStatus,
+          maxStay: z.string().nullable(),
+          leadTime: z.string().nullable(),
+          notes: z.string(),
+          sources: z.array(SourceRef),
+        }),
+      ),
+      officialUrl: z.string().nullable(),
+      confidence: z.enum(["high", "medium", "low"]),
+      sources: z.array(SourceRef),
+    })
+    .nullable(),
+  overall: z.object({ label: FitLabel, summary: z.string() }),
+});
+export type FitCard = z.infer<typeof FitCardSchema>;
+
+export const FitResultSchema = z.object({
+  candidates: z.array(FitCardSchema),
+  comparison: z.object({ summary: z.string(), pick: z.string().nullable() }).nullable(),
+  alternatives: z.array(FitCardSchema),
+  alternativesNote: z.string().nullable(),
+  /** Candidates that couldn't be researched (e.g. place not found). */
+  failures: z.array(z.object({ query: z.string(), error: z.string() })).default([]),
+});
+export type FitResult = z.infer<typeof FitResultSchema>;
+
+export const DestinationStateSchema = z.object({
+  candidates: z.array(z.string()),
+  timing: TimingSchema,
+  result: FitResultSchema.nullable(),
+  confirmed: z
+    .object({
+      place: PlaceSchema,
+      /** Extra stops for a multi-city route (in order, after the main place). */
+      stops: z.array(z.string()),
+      timing: TimingSchema,
+    })
+    .nullable(),
+});
+export type DestinationState = z.infer<typeof DestinationStateSchema>;

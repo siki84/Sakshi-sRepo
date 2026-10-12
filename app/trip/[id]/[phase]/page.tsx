@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getProfile, getTrip } from "@/lib/repo";
 import { PHASES, type PhaseKey } from "@/lib/schemas";
 import { WizardStepper } from "@/components/WizardStepper";
+import { DestinationStep } from "@/components/destination/DestinationStep";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +40,16 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
         <h1 className="text-xl font-semibold">{trip.title}</h1>
       </div>
       <WizardStepper tripId={id} current={phase as PhaseKey} reached={trip.phase} stale={trip.state.stale} />
-      <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-lg font-medium">
-          Step {meta.n}: {meta.label}
-        </h2>
-        <p className="mt-2 text-slate-500">This step is coming in a later milestone.</p>
-      </section>
+      {phase === "destination" ? (
+        <DestinationStep tripId={id} initial={trip.state.destination ?? null} units={profile.units} />
+      ) : (
+        <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <h2 className="text-lg font-medium">
+            Step {meta.n}: {meta.label}
+          </h2>
+          <p className="mt-2 text-slate-500">This step is coming in a later milestone.</p>
+        </section>
+      )}
     </>
   );
 }
