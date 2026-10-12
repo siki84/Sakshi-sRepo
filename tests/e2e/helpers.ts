@@ -74,3 +74,12 @@ export async function tripAtLength(page: Page) {
   await page.getByRole("button", { name: "Continue to trip length →" }).click();
   await expect(page).toHaveURL(/\/length$/);
 }
+
+/** …then accepts the ideal length and lands on the plan step. */
+export async function tripAtPlan(page: Page) {
+  await tripAtLength(page);
+  await expect(page.getByTestId("length-headline")).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel("Number of days").fill("4");
+  await page.getByRole("button", { name: "Plan my 4 days →" }).click();
+  await expect(page).toHaveURL(/\/plan$/);
+}

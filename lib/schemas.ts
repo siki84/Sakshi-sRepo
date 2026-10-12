@@ -87,7 +87,7 @@ export const TripStateSchema = z.object({
   interests: z.lazy(() => InterestsStateSchema).optional(),
   discover: z.lazy(() => DiscoverStateSchema).optional(),
   length: z.lazy(() => LengthStateSchema).optional(),
-  plan: z.unknown().optional(),
+  plan: z.lazy(() => PlanStateSchema).optional(),
   /** Phases whose inputs changed after they were produced. */
   stale: z.array(z.string()).default([]),
 });
@@ -401,3 +401,77 @@ export const LengthStateSchema = z.object({
   generatedAt: z.string(),
 });
 export type LengthState = z.infer<typeof LengthStateSchema>;
+
+// ---------- Phase 5: the plan ----------
+
+export const BlockKey = z.enum(["morning", "afternoon", "evening"]);
+export type BlockKey = z.infer<typeof BlockKey>;
+
+export const PlanDaySchema = z.object({
+  n: z.number().int().min(1),
+  date: z.string().nullable(),
+  city: z.string(),
+  /** Main neighborhood(s) of the day. */
+  area: z.string(),
+  kind: z.enum(["arrival", "full", "departure", "daytrip", "travel", "free"]),
+  title: z.string(),
+  summary: z.string(),
+  weatherNote: z.string().nullable(),
+  blocks: z.object({ morning: z.array(z.string()), afternoon: z.array(z.string()), evening: z.array(z.string()) }),
+  routeKm: z.number(),
+  /** True when the day's stops are spread too far apart to walk/hop between comfortably. */
+  sprawl: z.boolean(),
+  forecast: z.object({ highF: z.number(), lowF: z.number(), precipProb: z.number().nullable(), precipMm: z.number() }).nullable(),
+});
+export type PlanDay = z.infer<typeof PlanDaySchema>;
+
+export const RequirementCheckSchema = z.object({
+  text: z.string(),
+  status: z.enum(["met", "not_met", "info"]),
+  detail: z.string(),
+});
+export type RequirementCheck = z.infer<typeof RequirementCheckSchema>;
+
+export const ItinerarySchema = z.object({
+  key: z.enum(["frontload", "easy"]),
+  name: z.string(),
+  tagline: z.string(),
+  days: z.array(PlanDaySchema),
+  /** Good ideas that didn't fit; available to add back. */
+  optional: z.array(z.string()),
+  achievedMix: MixSchema,
+  checks: z.array(RequirementCheckSchema),
+});
+export type Itinerary = z.infer<typeof ItinerarySchema>;
+
+export const StaySchema = z.object({
+  name: z.string(),
+  why: z.string(),
+  walkability: z.string(),
+  transit: z.string(),
+  noise: z.string(),
+  priceFeel: z.enum(["$", "$$", "$$$", "$$$$"]),
+  bestFor: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  /** Average distance to the plan's daily stops, km (computed). */
+  avgKmToDays: z.number(),
+  sources: z.array(SourceRef),
+});
+export type Stay = z.infer<typeof StaySchema>;
+
+export const ChatMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  text: z.string(),
+  at: z.string(),
+});
+
+export const PlanStateSchema = z.object({
+  variants: z.array(ItinerarySchema),
+  chosen: z.number().int().min(0).max(1).nullable(),
+  stays: z.array(StaySchema),
+  chat: z.array(ChatMessageSchema),
+  basis: z.object({ days: z.number(), startDate: z.string().nullable() }),
+  updatedAt: z.string(),
+});
+export type PlanState = z.infer<typeof PlanStateSchema>;

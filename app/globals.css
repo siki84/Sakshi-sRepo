@@ -20,3 +20,10 @@ body {
   .no-print { display: none !important; }
   body { background: white; }
 }
+
+@media print {
+  header nav, [data-testid="map"], .leaflet-container { display: none !important; }
+  main { max-width: none; padding: 0; }
+  article { box-shadow: none !important; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 9px; color: #64748b; word-break: break-all; }
+}

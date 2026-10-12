@@ -7,6 +7,7 @@ import { DestinationStep } from "@/components/destination/DestinationStep";
 import { InterestsStep } from "@/components/interests/InterestsStep";
 import { DiscoverStep } from "@/components/discover/DiscoverStep";
 import { LengthStep } from "@/components/length/LengthStep";
+import { PlanStep } from "@/components/plan/PlanStep";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
         <h1 className="text-xl font-semibold">{trip.title}</h1>
       </div>
       <WizardStepper tripId={id} current={phase as PhaseKey} reached={trip.phase} stale={trip.state.stale} />
-      {trip.state.stale.includes(phase) && phase !== "discover" && phase !== "length" && (
+      {trip.state.stale.includes(phase) && phase !== "discover" && phase !== "length" && phase !== "plan" && (
         <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900" role="status">
           ⚠︎ An earlier step changed since this one was made — refresh it to reflect your latest choices.
         </p>
@@ -81,12 +82,24 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
           units={profile.units}
           names={Object.fromEntries((trip.state.discover?.pool ?? []).map((a) => [a.id, a.name]))}
         />
+      ) : phase === "plan" && trip.state.length?.chosenDays && trip.state.interests && trip.state.destination?.confirmed ? (
+        <PlanStep
+          tripId={id}
+          shareId={trip.shareId}
+          initial={trip.state.plan ?? null}
+          activities={Object.fromEntries((trip.state.discover?.pool ?? []).map((a) => [a.id, a]))}
+          interests={trip.state.interests}
+          center={trip.state.destination.confirmed.place}
+          units={profile.units}
+          stale={trip.state.stale.includes("plan")}
+          chosenDays={trip.state.length.chosenDays}
+        />
       ) : (
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-lg font-medium">
             Step {meta.n}: {meta.label}
           </h2>
-          <p className="mt-2 text-slate-500">This step is coming in a later milestone.</p>
+          <p className="mt-2 text-slate-500">Finish the earlier steps first.</p>
         </section>
       )}
     </>

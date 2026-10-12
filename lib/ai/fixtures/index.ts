@@ -3,6 +3,7 @@ import { fitAlternativesFixture, fitCompareFixture, fitResearchFixture } from ".
 import { requirementsFixture } from "./requirements";
 import { discoverBatchFixture, discoverMoreFixture } from "./discover";
 import { lengthAdviceFixture } from "./length";
+import { planNarrativeFixture, planRefineFixture, planStaysFixture } from "./plan";
 
 /**
  * MOCK_AI fixtures: canned model output per task, used by tests and offline dev.
@@ -31,6 +32,9 @@ const registry: Record<string, FixtureFn> = {
   "discover-batch": discoverBatchFixture,
   "discover-more": discoverMoreFixture,
   "length-advice": lengthAdviceFixture,
+  "plan-narrative": planNarrativeFixture,
+  "plan-stays": planStaysFixture,
+  "plan-refine": planRefineFixture,
 };
 
 export function registerFixture(task: string, fn: FixtureFn) {

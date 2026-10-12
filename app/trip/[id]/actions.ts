@@ -3,6 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { getProfile, getTrip, updateTrip } from "@/lib/repo";
 import { computeLength } from "@/lib/tripLength";
+import { citiesFor } from "@/lib/plan";
+import { finalizeItinerary } from "@/lib/plan/engine";
+import { applyOps, editWarnings, placeActivity, removeActivity } from "@/lib/plan/edit";
+import { interpretChat } from "@/lib/plan/ai";
+import { rankActivities } from "@/lib/rank";
+import type { Itinerary, PlanState } from "@/lib/schemas";
 import { getDailyForecast } from "@/lib/weather/openMeteo";
 import { PlaceSchema, TimingSchema } from "@/lib/schemas";
 import { withConfirmedDestination, withInterests } from "@/lib/tripState";
@@ -170,4 +176,87 @@ export async function confirmLengthAction(input: z.input<typeof ConfirmLengthInp
   });
   revalidatePath(`/trip/${tripId}`, "layout");
   return { ok: true as const };
+}
+
+// ---------- Phase 5: the plan ----------
+
+function planContext(tripId: string) {
+  const trip = getTrip(tripId);
+  const plan = trip?.state.plan;
+  const discover = trip?.state.discover;
+  const interests = trip?.state.interests;
+  if (!trip || !plan || plan.chosen === null || !discover || !interests) return null;
+  const byId = new Map(discover.pool.map((a) => [a.id, a]));
+  return { trip, plan, discover, interests, byId, chosen: plan.variants[plan.chosen] };
+}
+
+function savePlanVariant(tripId: string, plan: PlanState, itinerary: Itinerary, chat?: PlanState["chat"]) {
+  const variants = plan.variants.map((v, i) => (i === plan.chosen ? itinerary : v));
+  const next = { ...plan, variants, chat: chat ?? plan.chat, updatedAt: new Date().toISOString() };
+  updateTrip(tripId, { state: { plan: next } });
+  return next;
+}
+
+export async function choosePlanVariantAction(tripId: string, index: 0 | 1 | null) {
+  const trip = getTrip(tripId);
+  if (!trip?.state.plan) return { ok: false as const };
+  updateTrip(tripId, { state: { plan: { ...trip.state.plan, chosen: index } } });
+  revalidatePath(`/trip/${tripId}`, "layout");
+  return { ok: true as const };
+}
+
+const MoveInput = z.object({
+  tripId: z.string(),
+  activityId: z.string(),
+  /** null = move to Optional */
+  toDay: z.number().int().nullable(),
+  block: z.enum(["morning", "afternoon", "evening"]).nullable(),
+});
+
+/** Drag & drop / "Move to…": place an activity, then re-check the plan. */
+export async function moveActivityAction(input: z.input<typeof MoveInput>) {
+  const { tripId, activityId, toDay, block } = MoveInput.parse(input);
+  const ctx = planContext(tripId);
+  if (!ctx || !ctx.byId.has(activityId)) return { ok: false as const, error: "Choose a plan first" };
+  const cities = await citiesFor(ctx.trip);
+  const edited = toDay === null ? removeActivity(ctx.chosen, activityId) : placeActivity(ctx.chosen, activityId, toDay, block, ctx.byId);
+  const itinerary = finalizeItinerary(edited, ctx.byId, ctx.interests, cities);
+  const plan = savePlanVariant(tripId, ctx.plan, itinerary);
+  return { ok: true as const, plan, warnings: editWarnings(ctx.chosen, itinerary) };
+}
+
+/** Chat refinement: Claude proposes edit ops, the app applies and re-checks them. */
+export async function refineChatAction(tripId: string, message: string) {
+  const text = message.trim().slice(0, 500);
+  const ctx = planContext(tripId);
+  const profile = getProfile();
+  if (!ctx || !profile || !text) return { ok: false as const, error: "Choose a plan first" };
+  const inPlan = new Set(ctx.chosen.days.flatMap((d) => [...d.blocks.morning, ...d.blocks.afternoon, ...d.blocks.evening]));
+  const ranked = rankActivities(ctx.discover.pool, ctx.interests, ctx.discover.removed);
+  const candidates = [
+    ...ctx.chosen.optional.map((id) => ctx.byId.get(id)!).filter(Boolean),
+    ...ranked.filter((a) => !inPlan.has(a.id) && !ctx.chosen.optional.includes(a.id)),
+  ].slice(0, 40);
+  try {
+    const ops = await interpretChat(text, ctx.chosen, ctx.byId, candidates, {
+      profile,
+      interests: ctx.interests,
+      history: ctx.plan.chat,
+    });
+    const cities = await citiesFor(ctx.trip);
+    const { itinerary } = applyOps(ctx.chosen, ops, {
+      byId: ctx.byId,
+      interests: ctx.interests,
+      cities,
+      kept: new Set(ctx.discover.kept),
+    });
+    const warnings = editWarnings(ctx.chosen, itinerary);
+    const now = new Date().toISOString();
+    const reply = [ops.reply, ...warnings].join("\n");
+    const chat = [...ctx.plan.chat, { role: "user" as const, text, at: now }, { role: "assistant" as const, text: reply, at: now }];
+    const plan = savePlanVariant(tripId, ctx.plan, itinerary, chat);
+    return { ok: true as const, plan };
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
 }

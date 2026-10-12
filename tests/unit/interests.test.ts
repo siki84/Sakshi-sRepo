@@ -134,7 +134,7 @@ describe("withInterests", () => {
 
   it("a new mix re-ranks discovery (not stale) but invalidates length and plan", () => {
     const t = { ...createTrip(), phase: 5 };
-    t.state = { ...t.state, interests: interests(), discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" }, length: {} as never, plan: {} };
+    t.state = { ...t.state, interests: interests(), discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" }, length: {} as never, plan: {} as never };
     const r = withInterests(t, interests({ mix: { outdoors: 70, city: 0, food: 30, nightlife: 0, wellness: 0 } }));
     expect(r.state.stale?.sort()).toEqual(["length", "plan"]);
     expect(r.phase).toBe(5);
@@ -142,14 +142,14 @@ describe("withInterests", () => {
 
   it("a different set of interests also makes discovery stale", () => {
     const t = { ...createTrip(), phase: 5 };
-    t.state = { ...t.state, interests: interests(), discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" }, length: {} as never, plan: {} };
+    t.state = { ...t.state, interests: interests(), discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" }, length: {} as never, plan: {} as never };
     const r = withInterests(t, interests({ chips: ["hiking", "coffee", "bars"] }));
     expect(r.state.stale?.sort()).toEqual(["discover", "length", "plan"]);
   });
 
   it("saving unchanged interests changes nothing", () => {
     const t = { ...createTrip(), phase: 5 };
-    t.state = { ...t.state, interests: interests(), discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" }, length: {} as never, plan: {} };
+    t.state = { ...t.state, interests: interests(), discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" }, length: {} as never, plan: {} as never };
     expect(withInterests(t, interests()).state.stale).toEqual([]);
   });
 });
