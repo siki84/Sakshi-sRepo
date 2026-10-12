@@ -175,7 +175,7 @@ describe("runDiscovery (mock AI + mock geocoder)", () => {
     setDbForTests(openDb(":memory:"));
   });
 
-  const input = (i = interests()) => ({ place: lisbon, stops: [], timing: { kind: "month" as const, month: 5 }, climate: null, profile, interests: i });
+  const input = (i = interests()) => ({ place: lisbon, stops: [], timing: { kind: "month" as const, month: 5, approxDays: null }, climate: null, profile, interests: i });
 
   it("builds a sourced, deduped, location-checked pool", async () => {
     const s = await runDiscovery(input(), () => {});

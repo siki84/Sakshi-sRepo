@@ -2,6 +2,7 @@ import type { SearchResult } from "../client";
 import { fitAlternativesFixture, fitCompareFixture, fitResearchFixture } from "./fit";
 import { requirementsFixture } from "./requirements";
 import { discoverBatchFixture, discoverMoreFixture } from "./discover";
+import { lengthAdviceFixture } from "./length";
 
 /**
  * MOCK_AI fixtures: canned model output per task, used by tests and offline dev.
@@ -29,6 +30,7 @@ const registry: Record<string, FixtureFn> = {
   requirements: requirementsFixture,
   "discover-batch": discoverBatchFixture,
   "discover-more": discoverMoreFixture,
+  "length-advice": lengthAdviceFixture,
 };
 
 export function registerFixture(task: string, fn: FixtureFn) {

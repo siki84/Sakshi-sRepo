@@ -86,7 +86,7 @@ export const TripStateSchema = z.object({
   destination: z.lazy(() => DestinationStateSchema).optional(),
   interests: z.lazy(() => InterestsStateSchema).optional(),
   discover: z.lazy(() => DiscoverStateSchema).optional(),
-  length: z.unknown().optional(),
+  length: z.lazy(() => LengthStateSchema).optional(),
   plan: z.unknown().optional(),
   /** Phases whose inputs changed after they were produced. */
   stale: z.array(z.string()).default([]),
@@ -107,7 +107,12 @@ export type Trip = {
 // ---------- Phase 1: destination fit ----------
 
 export const TimingSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("month"), month: z.number().int().min(1).max(12) }),
+  z.object({
+    kind: z.literal("month"),
+    month: z.number().int().min(1).max(12),
+    /** Rough trip length the traveler has in mind (null = not sure). Exact dates imply their own length. */
+    approxDays: z.number().int().min(1).max(60).nullable().default(null),
+  }),
   z.object({
     kind: z.literal("dates"),
     start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -350,3 +355,49 @@ export const DiscoverStateSchema = z.object({
   updatedAt: z.string(),
 });
 export type DiscoverState = z.infer<typeof DiscoverStateSchema>;
+
+// ---------- Phase 4: trip length ----------
+
+export const DailyForecastSchema = z.object({
+  date: z.string(),
+  highF: z.number(),
+  lowF: z.number(),
+  precipMm: z.number(),
+  precipProb: z.number().nullable(),
+});
+export type DailyForecast = z.infer<typeof DailyForecastSchema>;
+
+export const LengthOptionSchema = z.object({
+  days: z.number().int().min(1),
+  /** Activities this option has room for. */
+  itemIds: z.array(z.string()),
+  breakdown: z.object({
+    activityHours: z.number(),
+    hoursPerDay: z.number(),
+    cityDays: z.number(),
+    dayTrips: z.number(),
+    travelDays: z.number(),
+    arrivalBuffer: z.number(),
+  }),
+});
+export type LengthOption = z.infer<typeof LengthOptionSchema>;
+
+export const LengthStateSchema = z.object({
+  /** Activities the recommendation is based on (kept picks, topped up with top-ranked ones). */
+  selectionIds: z.array(z.string()),
+  usedTopRanked: z.boolean(),
+  options: z.object({ min: LengthOptionSchema, ideal: LengthOptionSchema, generous: LengthOptionSchema }),
+  advice: z.object({
+    headline: z.string(),
+    min: z.string(),
+    ideal: z.string(),
+    generous: z.string(),
+    approxNote: z.string().nullable(),
+  }),
+  approxDays: z.number().nullable(),
+  chosenDays: z.number().int().min(1).max(60).nullable(),
+  startDate: z.string().nullable(),
+  forecast: z.array(DailyForecastSchema).nullable(),
+  generatedAt: z.string(),
+});
+export type LengthState = z.infer<typeof LengthStateSchema>;

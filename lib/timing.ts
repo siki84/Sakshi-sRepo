@@ -32,6 +32,18 @@ export function describeTiming(t: Timing): string {
   return `${fmt(s, false)} – ${fmt(e, true)}`;
 }
 
+/** Days the traveler has in mind: exact for date ranges, approximate (or null) for a month. */
+export function approxDaysOf(t: Timing): number | null {
+  return t.kind === "dates" ? tripDays(t) : t.approxDays;
+}
+
+/** "about 5 days", "6 days (exact dates)", or "length not decided yet" — for prompts and UI. */
+export function describeLength(t: Timing): string {
+  const d = approxDaysOf(t);
+  if (d === null) return "length not decided yet";
+  return t.kind === "dates" ? `${d} days (exact dates)` : `about ${d} day${d === 1 ? "" : "s"}`;
+}
+
 export function tripDays(t: Timing): number | null {
   if (t.kind === "month") return null;
   return Math.round((parseDay(t.end).getTime() - parseDay(t.start).getTime()) / DAY) + 1;

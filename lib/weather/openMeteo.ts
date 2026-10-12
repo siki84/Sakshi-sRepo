@@ -1,8 +1,8 @@
 import { cached, cacheKey } from "../cache";
 import { fetchJson, HttpError, isMockExternal } from "../http";
-import type { Climate } from "../schemas";
+import type { Climate, DailyForecast } from "../schemas";
 import { MONTHS } from "../timing";
-import { mockClimate } from "./fixtures";
+import { mockClimate, mockDailyForecast } from "./fixtures";
 
 export type DailySeries = {
   time: string[];
@@ -108,5 +108,43 @@ export async function getForecast(lat: number, lng: number, window: { start: str
     });
     const agg = aggregateDaily(daily);
     return { source: "forecast" as const, basis, ...agg };
+  });
+}
+
+/** Day-by-day forecast (only meaningful within ~16 days). */
+export async function getDailyForecast(
+  lat: number,
+  lng: number,
+  window: { start: string; end: string },
+): Promise<DailyForecast[]> {
+  if (isMockExternal()) return mockDailyForecast(lat, window);
+  const key = cacheKey("forecast-daily", { lat: lat.toFixed(2), lng: lng.toFixed(2), window, hour: new Date().toISOString().slice(0, 13) });
+  return cached(key, 0.25, async () => {
+    const params = new URLSearchParams({
+      latitude: lat.toFixed(4),
+      longitude: lng.toFixed(4),
+      start_date: window.start,
+      end_date: window.end,
+      daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max",
+      temperature_unit: "fahrenheit",
+      precipitation_unit: "mm",
+      timezone: "auto",
+    });
+    const { daily } = await fetchJson<{
+      daily: {
+        time: string[];
+        temperature_2m_max: (number | null)[];
+        temperature_2m_min: (number | null)[];
+        precipitation_sum: (number | null)[];
+        precipitation_probability_max?: (number | null)[];
+      };
+    }>(`https://api.open-meteo.com/v1/forecast?${params}`);
+    return daily.time.map((date, i) => ({
+      date,
+      highF: Math.round(daily.temperature_2m_max[i] ?? NaN),
+      lowF: Math.round(daily.temperature_2m_min[i] ?? NaN),
+      precipMm: Math.round((daily.precipitation_sum[i] ?? 0) * 10) / 10,
+      precipProb: daily.precipitation_probability_max?.[i] ?? null,
+    }));
   });
 }

@@ -11,6 +11,7 @@ For each item give your best-estimate coordinates (the app double-checks them), 
 export function discoverBatchPrompt(args: {
   city: string;
   timingText: string;
+  lengthText: string;
   profileText: string;
   weatherText: string;
   kind: "must_see" | "group" | "stop";
@@ -29,6 +30,7 @@ export function discoverBatchPrompt(args: {
         : `Find ${args.count} things to do in ${args.city} for these interests: ${args.focusText}. At least 60% should be local gems (tag "local_gem"); the rest can be well-known must-sees in these categories.`;
   return `City: ${args.city}
 When: ${args.timingText}
+Trip length: ${args.lengthText}
 Weather then: ${args.weatherText}
 
 Traveler:

@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getTrip, updateTrip } from "@/lib/repo";
+import { getProfile, getTrip, updateTrip } from "@/lib/repo";
+import { computeLength } from "@/lib/tripLength";
+import { getDailyForecast } from "@/lib/weather/openMeteo";
 import { PlaceSchema, TimingSchema } from "@/lib/schemas";
 import { withConfirmedDestination, withInterests } from "@/lib/tripState";
 import { InterestsStateSchema, GroupSchema, type InterestsState } from "@/lib/schemas";
 import { activeGroups, reconcileMix, type Mix } from "@/lib/interests";
 import { applyRules, interpretRequirements } from "@/lib/requirements";
-import { describeTiming } from "@/lib/timing";
+import { describeTiming, forecastWindow, isoDay } from "@/lib/timing";
 import { z } from "zod";
 
 const ConfirmInput = z.object({
@@ -109,6 +111,63 @@ export async function confirmDiscoveryAction(tripId: string) {
   const trip = getTrip(tripId);
   if (!trip?.state.discover?.pool.length) return { ok: false as const, error: "Run discovery first" };
   updateTrip(tripId, { phase: Math.max(trip.phase, 4) });
+  revalidatePath(`/trip/${tripId}`, "layout");
+  return { ok: true as const };
+}
+
+// ---------- Phase 4: trip length ----------
+
+export async function computeLengthAction(tripId: string) {
+  const trip = getTrip(tripId);
+  const profile = getProfile();
+  if (!trip || !profile) return { ok: false as const, error: "Trip or profile not found" };
+  try {
+    const length = await computeLength(trip, profile);
+    const stale = getTrip(tripId)!.state.stale.filter((s) => s !== "length");
+    updateTrip(tripId, { state: { length, stale } });
+    return { ok: true as const, length };
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
+}
+
+/** Forecast preview for a start date + length (only when the trip starts within 14 days). */
+export async function previewForecastAction(tripId: string, startDate: string, days: number) {
+  const trip = getTrip(tripId);
+  const place = trip?.state.destination?.confirmed?.place;
+  if (!place || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || days < 1) return { ok: true as const, forecast: null };
+  const end = isoDay(new Date(new Date(`${startDate}T00:00:00Z`).getTime() + (days - 1) * 86_400_000));
+  const window = forecastWindow({ kind: "dates", start: startDate, end });
+  if (!window) return { ok: true as const, forecast: null };
+  try {
+    return { ok: true as const, forecast: await getDailyForecast(place.lat, place.lng, window) };
+  } catch (e) {
+    return { ok: false as const, error: `Couldn't fetch the forecast: ${(e as Error).message}` };
+  }
+}
+
+const ConfirmLengthInput = z.object({
+  tripId: z.string(),
+  days: z.number().int().min(1).max(60),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+});
+
+export async function confirmLengthAction(input: z.input<typeof ConfirmLengthInput>) {
+  const { tripId, days, startDate } = ConfirmLengthInput.parse(input);
+  const trip = getTrip(tripId);
+  const length = trip?.state.length;
+  if (!trip || !length) return { ok: false as const, error: "Work out the trip length first" };
+  if (startDate && startDate < isoDay(new Date())) return { ok: false as const, error: "That start date is in the past" };
+  const fc = startDate ? await previewForecastAction(tripId, startDate, days) : { ok: true as const, forecast: null };
+  const forecast = fc.ok ? fc.forecast : null;
+  const changed = length.chosenDays !== days || length.startDate !== startDate;
+  const stale = new Set(trip.state.stale);
+  stale.delete("length");
+  if (changed && trip.state.plan) stale.add("plan");
+  updateTrip(tripId, {
+    phase: Math.max(trip.phase, 5),
+    state: { length: { ...length, chosenDays: days, startDate, forecast }, stale: [...stale] },
+  });
   revalidatePath(`/trip/${tripId}`, "layout");
   return { ok: true as const };
 }

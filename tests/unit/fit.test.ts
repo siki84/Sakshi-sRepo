@@ -157,7 +157,7 @@ describe("runFit (mock AI + mock weather)", () => {
   });
 
   it("compares two candidates without alternatives when one fits", async () => {
-    const r = await runFit(["Lisbon", "Seville"], { kind: "month", month: 5 }, profile, () => {});
+    const r = await runFit(["Lisbon", "Seville"], { kind: "month", month: 5, approxDays: null }, profile, () => {});
     expect(r.candidates.map((c) => c.place.name)).toEqual(["Lisbon, Portugal", "Seville, Spain"]);
     expect(r.comparison).not.toBeNull();
     expect(r.alternatives).toEqual([]);
@@ -168,7 +168,7 @@ describe("runFit (mock AI + mock weather)", () => {
   });
 
   it("suggests weather-checked alternatives when nothing fits", async () => {
-    const r = await runFit(["Bangkok"], { kind: "month", month: 7 }, profile, () => {});
+    const r = await runFit(["Bangkok"], { kind: "month", month: 7, approxDays: null }, profile, () => {});
     expect(r.candidates[0].weatherFit?.label).toBe("poor");
     expect(r.candidates[0].overall.label).toBe("poor");
     expect(r.alternatives.length).toBeGreaterThanOrEqual(2);
@@ -177,13 +177,13 @@ describe("runFit (mock AI + mock weather)", () => {
   });
 
   it("reports places it can't find instead of failing the whole run", async () => {
-    const r = await runFit(["Lisbon", "zzz-nowhere"], { kind: "month", month: 5 }, profile, () => {});
+    const r = await runFit(["Lisbon", "zzz-nowhere"], { kind: "month", month: 5, approxDays: null }, profile, () => {});
     expect(r.candidates).toHaveLength(1);
     expect(r.failures[0].error).toMatch(/Couldn't find/);
   });
 
   it("doesn't look for alternatives when nothing could be located", async () => {
-    const r = await runFit(["zzz-nowhere"], { kind: "month", month: 5 }, profile, () => {});
+    const r = await runFit(["zzz-nowhere"], { kind: "month", month: 5, approxDays: null }, profile, () => {});
     expect(r.candidates).toEqual([]);
     expect(r.alternatives).toEqual([]);
   });
@@ -198,13 +198,13 @@ describe("runFit (mock AI + mock weather)", () => {
         avoidAdvanceVisa: false,
       },
     };
-    const r = await runFit(["Lisbon"], { kind: "month", month: 5 }, withDocs, () => {});
+    const r = await runFit(["Lisbon"], { kind: "month", month: 5, approxDays: null }, withDocs, () => {});
     expect(r.candidates[0].visa?.otherDocuments).toHaveLength(2);
     expect(r.candidates[0].restrictions[0].concern).toMatch(/visa refusal/);
   });
 
   it("skips visa for domestic trips", async () => {
-    const r = await runFit(["Seattle"], { kind: "month", month: 8 }, profile, () => {});
+    const r = await runFit(["Seattle"], { kind: "month", month: 8, approxDays: null }, profile, () => {});
     expect(r.candidates[0].visa).toBeNull();
   });
 });
@@ -212,7 +212,7 @@ describe("runFit (mock AI + mock weather)", () => {
 describe("withConfirmedDestination", () => {
   beforeEach(() => setDbForTests(openDb(":memory:")));
   const place = { query: "Lisbon", name: "Lisbon, Portugal", lat: 38.7, lng: -9.1, countryCode: "PT" };
-  const timing = { kind: "month" as const, month: 5 };
+  const timing = { kind: "month" as const, month: 5, approxDays: null };
   const dest = { candidates: ["Lisbon"], timing, travelDocs: null, result: null };
 
   it("first confirmation unlocks interests", () => {

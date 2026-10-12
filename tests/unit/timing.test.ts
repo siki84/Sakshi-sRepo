@@ -5,12 +5,12 @@ const now = new Date("2026-10-12T15:00:00Z");
 
 describe("timing", () => {
   it("lists months a date range touches", () => {
-    expect(monthsOf({ kind: "month", month: 7 })).toEqual([7]);
+    expect(monthsOf({ kind: "month", month: 7, approxDays: null })).toEqual([7]);
     expect(monthsOf({ kind: "dates", start: "2026-12-28", end: "2027-01-04" })).toEqual([12, 1]);
   });
 
   it("describes timing", () => {
-    expect(describeTiming({ kind: "month", month: 3 })).toBe("March");
+    expect(describeTiming({ kind: "month", month: 3, approxDays: null })).toBe("March");
     expect(describeTiming({ kind: "dates", start: "2026-11-02", end: "2026-11-06" })).toBe("Nov 2 – Nov 6, 2026");
     expect(tripDays({ kind: "dates", start: "2026-11-02", end: "2026-11-06" })).toBe(5);
   });
@@ -21,7 +21,7 @@ describe("timing", () => {
       end: "2026-10-24",
     });
     expect(forecastWindow({ kind: "dates", start: "2026-11-20", end: "2026-11-24" }, now)).toBeNull();
-    expect(forecastWindow({ kind: "month", month: 10 }, now)).toBeNull();
+    expect(forecastWindow({ kind: "month", month: 10, approxDays: null }, now)).toBeNull();
     // Clipped to the 16-day horizon.
     expect(forecastWindow({ kind: "dates", start: "2026-10-20", end: "2026-11-20" }, now)?.end).toBe("2026-10-27");
   });

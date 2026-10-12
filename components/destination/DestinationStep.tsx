@@ -6,7 +6,7 @@ import type { Progress } from "@/lib/ai/client";
 import type { DestinationState, FitCard, FitResult, Timing, TravelDocs } from "@/lib/schemas";
 import { countryName } from "@/lib/countries";
 import { TravelDocsEditor, summarizeTravelDocs } from "../TravelDocsEditor";
-import { MONTHS, validateTiming } from "@/lib/timing";
+import { MONTHS, tripDays, validateTiming } from "@/lib/timing";
 import { postSse } from "@/lib/sseClient";
 import { confirmDestinationAction } from "@/app/trip/[id]/actions";
 import { ProgressLog } from "../ProgressLog";
@@ -14,8 +14,18 @@ import { FitCardView } from "./FitCardView";
 
 function defaultTiming(): Timing {
   const m = new Date().getMonth() + 1;
-  return { kind: "month", month: (m % 12) + 1 }; // next month
+  return { kind: "month", month: (m % 12) + 1, approxDays: null }; // next month
 }
+
+const LENGTH_OPTIONS: { label: string; days: number | null }[] = [
+  { label: "Weekend (2–3)", days: 3 },
+  { label: "4–5 days", days: 5 },
+  { label: "About a week", days: 7 },
+  { label: "10 days", days: 10 },
+  { label: "2 weeks", days: 14 },
+  { label: "3 weeks+", days: 21 },
+  { label: "Not sure", days: null },
+];
 
 const isGood = (c: FitCard) => c.overall.label === "great" || c.overall.label === "good";
 
@@ -165,7 +175,11 @@ export function DestinationStep({
                 onClick={() =>
                   setTiming(
                     k === "month"
-                      ? { kind: "month", month: timing.kind === "dates" ? Number(timing.start.slice(5, 7)) : timing.month }
+                      ? {
+                          kind: "month",
+                          month: timing.kind === "dates" ? Number(timing.start.slice(5, 7)) || 1 : timing.month,
+                          approxDays: timing.kind === "dates" ? tripDays(timing) : timing.approxDays,
+                        }
                       : { kind: "dates", start: "", end: "" },
                   )
                 }
@@ -179,7 +193,7 @@ export function DestinationStep({
             <select
               aria-label="Month"
               value={timing.month}
-              onChange={(e) => setTiming({ kind: "month", month: Number(e.target.value) })}
+              onChange={(e) => setTiming({ ...timing, kind: "month", month: Number(e.target.value) } as Timing)}
               className="rounded-lg border border-slate-300 bg-white px-3 py-2"
             >
               {MONTHS.map((m, i) => (
@@ -206,6 +220,53 @@ export function DestinationStep({
                 className="rounded-lg border border-slate-300 px-3 py-2"
               />
             </div>
+          )}
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">About how many days?</legend>
+          {timing.kind === "dates" ? (
+            <p className="text-sm text-slate-600" data-testid="date-length">
+              {timing.start && timing.end && tripDays(timing)! > 0 ? `${tripDays(timing)} days, from your dates.` : "Set your dates above."}
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Approximate trip length">
+                {LENGTH_OPTIONS.map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={timing.approxDays === o.days}
+                    onClick={() => setTiming({ ...timing, approxDays: o.days })}
+                    className={`rounded-full px-3 py-1.5 text-sm ring-1 ${
+                      timing.approxDays === o.days ? "bg-slate-900 text-white ring-slate-900" : "bg-white ring-slate-300"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+                <label className="flex items-center gap-1.5 text-sm text-slate-600">
+                  or
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    aria-label="Number of days"
+                    value={timing.approxDays ?? ""}
+                    onChange={(e) => {
+                      const n = Math.round(Number(e.target.value));
+                      setTiming({ ...timing, approxDays: e.target.value && n >= 1 && n <= 60 ? n : null });
+                    }}
+                    className="w-16 rounded-lg border border-slate-300 px-2 py-1.5"
+                  />
+                  days
+                </label>
+              </div>
+              <p className="text-xs text-slate-500">
+                A rough idea is fine — we&apos;ll recommend a length after finding things to do, and you can change it then.
+              </p>
+            </>
           )}
         </fieldset>
 

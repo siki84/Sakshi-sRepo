@@ -1,5 +1,5 @@
 import type { Climate, Place, Timing, WeatherFit } from "../../schemas";
-import { describeTiming } from "../../timing";
+import { describeLength, describeTiming } from "../../timing";
 import { LABEL_TEXT } from "../../weather/score";
 import { countryName } from "../../countries";
 
@@ -37,12 +37,13 @@ Your weatherVerdict must agree with these numbers; do not re-score the weather.`
   const visaBlock = args.domestic
     ? "This is a domestic trip for this traveler (they hold a passport for the destination country). Set visa to null."
     : `Check entry requirements for EACH of these passports: ${args.passports.map((c) => `${countryName(c)} (${c})`).join(", ")}.
-Include exactly one perPassport entry per passport. Prefer official government sources (the destination's immigration or foreign-ministry site, or the traveler's government travel advice). Note any pre-travel authorization (ETA, ETIAS, K-ETA, ESTA-style) and its lead time. If rules are changing or unclear, set confidence to "low" and say why.
+Include exactly one perPassport entry per passport. Prefer official government sources (the destination's immigration or foreign-ministry site, or the traveler's government travel advice). Note any pre-travel authorization (ETA, ETIAS, K-ETA, ESTA-style) and its lead time. If the trip length is longer than the permitted stay, say so clearly. If rules are changing or unclear, set confidence to "low" and say why.
 ${args.docCount ? `Also check whether each of the traveler's other documents (residence permits, visas held — listed under Traveler) grants or eases entry here; many countries accept e.g. a valid US/UK/Schengen visa or residence permit. Include exactly one otherDocuments entry per listed document (${args.docCount} total).` : "The traveler listed no other documents; leave otherDocuments empty."}`;
 
   return `Today is ${args.today}.
 Destination: ${place.name}${place.countryCode ? ` (${countryName(place.countryCode)})` : ""}
 Trip timing: ${describeTiming(timing)}
+Trip length: ${describeLength(timing)}
 
 Traveler:
 ${args.profileText}
@@ -65,11 +66,12 @@ export function comparisonPrompt(args: { profileText: string; timing: Timing; ca
 ${args.profileText}
 
 Trip timing: ${describeTiming(args.timing)}
+Trip length: ${describeLength(args.timing)}
 
 Options (already researched):
 ${args.cardsText}
 
-Compare them side by side for this traveler: weather fit first, then season/crowds, then visa hassle. Be direct about trade-offs. Set "pick" to the exact name of the better option, or null if neither is a good fit or it's genuinely a toss-up.`;
+Compare them side by side for this traveler: weather fit first, then season/crowds, then visa hassle, then whether the trip length suits each place (travel time from home, enough to do). Be direct about trade-offs. Set "pick" to the exact name of the better option, or null if neither is a good fit or it's genuinely a toss-up.`;
 }
 
 export function alternativesPrompt(args: {
@@ -82,11 +84,12 @@ export function alternativesPrompt(args: {
 ${args.profileText}
 
 Trip timing: ${describeTiming(args.timing)}
+Trip length: ${describeLength(args.timing)}
 
 They were considering: ${args.original.map((o) => `${o.name} (${o.why})`).join("; ")}.
 Their other documents and restrictions:
 ${args.docsText}
 
-Those aren't a great fit. Suggest 6 alternative destinations that keep the same vibe, region, or trip type, but are likely to have weather this traveler enjoys in ${describeTiming(args.timing)} and are realistic to enter given their passport(s), other documents, and restrictions.
+Those aren't a great fit. Suggest 6 alternative destinations that keep the same vibe, region, or trip type, but are likely to have weather this traveler enjoys in ${describeTiming(args.timing)} are realistic to enter given their passport(s), other documents, and restrictions, and make sense for the trip length given travel time from their home city.
 Each name must be a specific, geocodable place ("City, Country" or "Island/Region, Country"), not a whole country. Don't repeat the original options. The app will check real climate data for each and keep only the ones that fit.`;
 }

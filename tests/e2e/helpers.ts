@@ -42,6 +42,7 @@ export async function tripAtInterests(page: Page) {
   await newTrip(page);
   await page.getByLabel("First destination").fill("Lisbon");
   await page.getByLabel("Month").selectOption({ label: "May" });
+  await page.getByRole("radio", { name: "4–5 days" }).click();
   await page.getByRole("button", { name: "Check fit" }).click();
   await page.getByRole("button", { name: "Looks right — start research" }).click();
   await page.getByRole("button", { name: "Choose Lisbon" }).click({ timeout: 30_000 });
@@ -58,4 +59,18 @@ export async function tripAtDiscover(page: Page) {
   }
   await page.getByRole("button", { name: "Save and continue →" }).click();
   await expect(page).toHaveURL(/\/discover$/);
+}
+
+/** …then researches, keeps a few, and lands on trip length. */
+export async function tripAtLength(page: Page) {
+  await tripAtDiscover(page);
+  await page.getByRole("button", { name: "Find things to do" }).click();
+  await expect(page.getByRole("heading", { name: /\d+ ideas/ })).toBeVisible({ timeout: 30_000 });
+  const cards = page.getByRole("list", { name: "Activity list" }).getByRole("article");
+  for (let i = 0; i < 6; i++) {
+    const name = (await cards.nth(i).getByRole("heading").textContent())!;
+    await cards.nth(i).getByRole("button", { name: `Keep ${name}` }).click();
+  }
+  await page.getByRole("button", { name: "Continue to trip length →" }).click();
+  await expect(page).toHaveURL(/\/length$/);
 }

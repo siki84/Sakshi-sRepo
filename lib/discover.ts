@@ -8,7 +8,7 @@ import { verifiedSources } from "./ai/sources";
 import { DISCOVER_SYSTEM, discoverBatchPrompt, moreLikeThisPrompt } from "./ai/prompts/discover";
 import { allChips, chipLabel, activeGroups, GROUPS, type Group } from "./interests";
 import { describeProfile } from "./profileText";
-import { describeTiming } from "./timing";
+import { approxDaysOf, describeLength, describeTiming } from "./timing";
 import { formatTemp } from "./units";
 import type { Activity, BestTime, Climate, DiscoverState, InterestsState, Place, Profile, Timing } from "./schemas";
 
@@ -116,15 +116,17 @@ export function isExcluded(a: Pick<Activity, "name" | "category">, interests: In
 }
 
 /** Which research calls are needed: must-sees + one per active interest group + one per extra stop. */
-export function planBatches(interests: InterestsState, city: string, stops: string[]): Batch[] {
+export function planBatches(interests: InterestsState, city: string, stops: string[], days: number | null = null): Batch[] {
+  // Longer trips need a bigger pool to choose from; short ones a tighter one.
+  const scale = days === null ? 1 : Math.min(2, Math.max(0.7, days / 5));
   const chips = allChips(interests.custom);
   const selected = interests.chips.filter((k) => chips.find((c) => c.key === k)?.group !== "modifier");
   const groups = activeGroups(interests.chips, interests.custom);
-  const batches: Batch[] = [{ key: "must_see", kind: "must_see", city, chips: [...selected].sort(), count: 10 }];
+  const batches: Batch[] = [{ key: "must_see", kind: "must_see", city, chips: [...selected].sort(), count: Math.round(10 * Math.min(scale, 1.4)) }];
   for (const g of groups) {
     const inGroup = selected.filter((k) => chips.find((c) => c.key === k)?.group === g).sort();
     // Bigger slice of the mix → more options to choose from.
-    const count = Math.max(6, Math.min(14, Math.round(interests.mix[g] / 5)));
+    const count = Math.max(5, Math.min(20, Math.round((interests.mix[g] / 5) * scale)));
     batches.push({ key: g, kind: "group", city, chips: inGroup, count });
   }
   for (const s of stops) batches.push({ key: `stop:${s}`, kind: "stop", city: s, chips: [...selected].sort(), count: 10 });
@@ -247,6 +249,7 @@ async function runBatch(batch: Batch, center: { lat: number; lng: number }, ctx:
       prompt: discoverBatchPrompt({
         city: batch.city,
         timingText: describeTiming(timing),
+        lengthText: describeLength(timing),
         profileText: describeProfile(profile),
         weatherText: weatherText(ctx.climate, profile.units),
         kind: batch.kind,
@@ -325,7 +328,7 @@ export async function runDiscovery(input: DiscoverInput, emit: ProgressFn): Prom
     if (hit) centers.set(s, { lat: hit.lat, lng: hit.lng, countryCode: hit.countryCode });
     else emit({ type: "status", message: `Couldn't find stop "${s}" on the map — skipping it` });
   }
-  const batches = planBatches(interests, place.name, stops.filter((s) => centers.has(s)));
+  const batches = planBatches(interests, place.name, stops.filter((s) => centers.has(s)), approxDaysOf(timing));
   const prevBatches = previous?.researchedFor.place === place.name ? previous.researchedFor.batches : {};
   const changed = batches.filter((b) => JSON.stringify(prevBatches[b.key]) !== JSON.stringify(b.chips));
   const unchangedKeys = new Set(batches.filter((b) => !changed.includes(b)).map((b) => b.key));
