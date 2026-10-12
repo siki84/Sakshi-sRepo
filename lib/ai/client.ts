@@ -126,11 +126,42 @@ export function validate<S extends z.ZodType>(
   return problems.length ? { ok: false, problems } : { ok: true, data: parsed.data };
 }
 
+/** Turn SDK/API errors into messages a traveler can act on. */
+export function friendlyError(e: unknown): Error {
+  if (e instanceof AiError) return e;
+  if (e instanceof Anthropic.AuthenticationError) {
+    return new AiError("Your Anthropic API key was rejected. Check ANTHROPIC_API_KEY in .env.local.", "config");
+  }
+  if (e instanceof Anthropic.PermissionDeniedError) {
+    return new AiError("Your API key doesn't have access to this model or to web search. Check your Claude Console settings.", "config");
+  }
+  if (e instanceof Anthropic.RateLimitError) {
+    return new AiError("Claude is rate-limiting requests right now. Wait a minute and try again.", "config");
+  }
+  if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(e.message)) {
+    return new AiError("Your Anthropic account is out of credit. Add some at console.anthropic.com → Billing.", "config");
+  }
+  if (e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError) {
+    return new AiError("Couldn't reach Claude (network or server issue). Try again in a moment.", "config");
+  }
+  if (e instanceof Anthropic.APIError) {
+    return new AiError(`Claude API error${e.status ? ` (${e.status})` : ""}: ${e.message}`, "config");
+  }
+  return e instanceof Error ? e : new Error(String(e));
+}
+
 export async function runStructured<S extends z.ZodType>(
   req: StructuredRequest<S>,
 ): Promise<StructuredResult<z.infer<S>>> {
   if (isMockAi()) return runMock(req);
+  try {
+    return await runLive(req);
+  } catch (e) {
+    throw friendlyError(e);
+  }
+}
 
+async function runLive<S extends z.ZodType>(req: StructuredRequest<S>): Promise<StructuredResult<z.infer<S>>> {
   const anthropic = getClient();
   const searchResults = new Map<string, SearchResult>();
   const tools: BetaToolUnion[] = req.webSearch

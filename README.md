@@ -2,7 +2,7 @@
 
 A guided, five-step trip planner: it compares destinations against your weather preferences and passport, researches must-sees and local gems (Reddit, Pinterest, blogs — via Claude's web search, with sources), recommends a trip length, and builds two map-based itineraries you can refine and share.
 
-> Status: **Milestone 0 (setup)** — app shell, storage, AI client, and tests. Phases are filled in milestone by milestone.
+> Status: **Milestone 1 (traveler profile)** done. Destination fit (M2) is next.
 
 ## Setup
 

@@ -25,6 +25,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { MOCK_AI: "1", MOCK_EXTERNAL: "1", DATA_DIR: ".e2e-data" },
+    env: { MOCK_AI: "1", MOCK_EXTERNAL: "1", DATA_DIR: ".e2e-data", E2E: "1" },
   },
 });

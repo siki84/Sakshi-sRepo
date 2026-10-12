@@ -17,21 +17,29 @@ export type PhaseKey = (typeof PHASES)[number]["key"];
 export const Tolerance = z.enum(["love", "ok", "dislike", "hate"]);
 export type Tolerance = z.infer<typeof Tolerance>;
 
+export const WeatherPrefsSchema = z
+  .object({
+    idealMinF: z.number().min(-20).max(120),
+    idealMaxF: z.number().min(-20).max(120),
+    heat: Tolerance, // hotter than the ideal range
+    cold: Tolerance, // colder than the ideal range
+    humidity: Tolerance, // muggy / sticky air
+    rain: Tolerance, // frequent rainy days
+    notes: z.string().max(500).default(""),
+  })
+  .refine((w) => w.idealMinF < w.idealMaxF, {
+    message: "The low end of your ideal range must be below the high end",
+    path: ["idealMaxF"],
+  });
+export type WeatherPrefs = z.infer<typeof WeatherPrefsSchema>;
+
 export const ProfileSchema = z.object({
-  homeCity: z.string().min(1),
-  passports: z.array(z.string().length(2)).min(1), // ISO 3166-1 alpha-2
-  weather: z.object({
-    idealMinF: z.number(),
-    idealMaxF: z.number(),
-    heat: Tolerance, // above the ideal range
-    cold: Tolerance, // below the ideal range
-    humidity: Tolerance,
-    rain: Tolerance,
-    notes: z.string().default(""),
-  }),
+  homeCity: z.string().trim().min(1, "Enter your home city"),
+  passports: z.array(z.string().length(2)).min(1, "Add at least one passport"), // ISO 3166-1 alpha-2
+  weather: WeatherPrefsSchema,
   travelers: z.object({
     type: z.enum(["solo", "partner", "family", "friends"]),
-    kidsAges: z.array(z.number().int().min(0).max(17)).default([]),
+    kidsAges: z.array(z.number().int().min(0).max(17)).max(10).default([]),
     groupSize: z.number().int().min(1).max(30).default(1),
   }),
   pace: z.number().int().min(1).max(5), // 1 = very relaxed, 5 = packed
