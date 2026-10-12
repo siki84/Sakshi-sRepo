@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { openDb, setDbForTests } from "@/lib/db";
-import { buildCard, checkFitResearch, runFit } from "@/lib/fit";
+import { buildCard, checkFitResearch, runFit, type FitCheckOpts } from "@/lib/fit";
 import { normalizeUrl, type SearchResult } from "@/lib/ai/client";
 import type { FitResearchAi } from "@/lib/ai/schemas";
 import type { Profile } from "@/lib/schemas";
@@ -14,6 +14,7 @@ const profile: Profile = {
   travelers: { type: "partner", kidsAges: [], groupSize: 2 },
   pace: 3,
   units: "F",
+  travelDocs: { residencePermits: [], visasHeld: [], restrictions: "", avoidAdvanceVisa: false },
 };
 
 const results = (...urls: string[]) =>
@@ -32,14 +33,23 @@ const research = (over: Partial<FitResearchAi> = {}): FitResearchAi => ({
       { passport: "US", status: "visa_free", maxStay: "90 days", leadTime: null, notes: "", sourceUrls: ["https://gov.pt/v"] },
       { passport: "IN", status: "visa_required", maxStay: null, leadTime: "4–6 weeks", notes: "", sourceUrls: [] },
     ],
+    otherDocuments: [],
     officialUrl: "https://gov.pt/v",
     confidence: "high",
   },
+  restrictions: [],
   overall: { label: "good", summary: "o" },
   ...over,
 });
 
-const opts = { domestic: false, passports: ["US", "IN"], weatherLabel: "great" as const };
+const opts: FitCheckOpts = {
+  domestic: false,
+  passports: ["US", "IN"],
+  weatherLabel: "great",
+  docCount: 0,
+  hasRestrictions: false,
+  avoidAdvanceVisa: false,
+};
 
 describe("checkFitResearch", () => {
   it("accepts well-sourced output", () => {
@@ -63,6 +73,64 @@ describe("checkFitResearch", () => {
     const sr = { searchResults: results("https://a.com/1", "https://gov.pt/v") };
     const p = checkFitResearch(research({ overall: { label: "great", summary: "" } }), sr, { ...opts, weatherLabel: "mixed" });
     expect(p.join(" ")).toMatch(/can't be better than the computed weather fit/);
+  });
+});
+
+describe("travel documents and restrictions", () => {
+  const sr = { searchResults: results("https://a.com/1", "https://gov.pt/v") };
+  const usVisa = {
+    document: "US tourist visa",
+    effect: "grants_entry" as const,
+    status: "visa_free" as const,
+    notes: "valid multiple-entry US visa accepted",
+    sourceUrls: ["https://gov.pt/v"],
+  };
+  const indiaOnly = research({
+    visa: {
+      perPassport: [{ passport: "IN", status: "visa_required", maxStay: null, leadTime: "4 weeks", notes: "", sourceUrls: ["https://gov.pt/v"] }],
+      otherDocuments: [],
+      officialUrl: null,
+      confidence: "medium",
+    },
+  });
+  const inOpts = { ...opts, passports: ["IN"] };
+
+  it("requires one answer per listed document", () => {
+    expect(checkFitResearch(indiaOnly, sr, { ...inOpts, docCount: 1 }).join(" ")).toMatch(/otherDocuments must have exactly 1/);
+    const ok = { ...indiaOnly, visa: { ...indiaOnly.visa!, otherDocuments: [usVisa] } };
+    expect(checkFitResearch(ok, sr, { ...inOpts, docCount: 1 })).toEqual([]);
+  });
+
+  it("requires answers to the traveler's stated restrictions", () => {
+    expect(checkFitResearch(research(), sr, { ...opts, hasRestrictions: true }).join(" ")).toMatch(/restrictions must address/);
+  });
+
+  it("a blocker forces a poor verdict", () => {
+    const d = research({ restrictions: [{ concern: "overstay", impact: "blocker", notes: "", sourceUrls: [] }] });
+    expect(checkFitResearch(d, sr, { ...opts, hasRestrictions: true }).join(" ")).toMatch(/blocker/);
+  });
+
+  it("'no advance visa' preference forces poor when only an advance visa works", () => {
+    expect(checkFitResearch(indiaOnly, sr, { ...inOpts, avoidAdvanceVisa: true }).join(" ")).toMatch(/no visa applied for in advance/);
+    // …but a document that grants entry rescues it.
+    const ok = { ...indiaOnly, visa: { ...indiaOnly.visa!, otherDocuments: [usVisa] } };
+    expect(checkFitResearch(ok, sr, { ...inOpts, docCount: 1, avoidAdvanceVisa: true })).toEqual([]);
+  });
+
+  it("uses a sourced document as the easiest entry route", () => {
+    const place = { query: "x", name: "X", lat: 0, lng: 0, countryCode: "MX" };
+    const ok = { ...indiaOnly, visa: { ...indiaOnly.visa!, otherDocuments: [usVisa] } };
+    const card = buildCard(ok, sr.searchResults, { place, climate: null, weatherFit: null });
+    expect(card.visa?.best).toMatchObject({ status: "visa_free", via: "US tourist visa" });
+  });
+
+  it("ignores an unsourced document claim and marks it unverified", () => {
+    const place = { query: "x", name: "X", lat: 0, lng: 0, countryCode: "MX" };
+    const d = { ...indiaOnly, visa: { ...indiaOnly.visa!, otherDocuments: [{ ...usVisa, sourceUrls: ["https://made.up"] }] } };
+    const card = buildCard(d, sr.searchResults, { place, climate: null, weatherFit: null });
+    expect(card.visa?.best).toMatchObject({ status: "visa_required", via: null });
+    expect(card.visa?.otherDocuments[0]).toMatchObject({ effect: "unknown", status: "unknown" });
+    expect(card.visa?.otherDocuments[0].notes).toMatch(/Couldn't verify/);
   });
 });
 
@@ -120,6 +188,21 @@ describe("runFit (mock AI + mock weather)", () => {
     expect(r.alternatives).toEqual([]);
   });
 
+  it("passes travel documents and restrictions through to the cards", async () => {
+    const withDocs: Profile = {
+      ...profile,
+      travelDocs: {
+        residencePermits: ["GB"],
+        visasHeld: [{ country: "US", kind: "tourist", expires: null }],
+        restrictions: "Previous visa refusal for the UK",
+        avoidAdvanceVisa: false,
+      },
+    };
+    const r = await runFit(["Lisbon"], { kind: "month", month: 5 }, withDocs, () => {});
+    expect(r.candidates[0].visa?.otherDocuments).toHaveLength(2);
+    expect(r.candidates[0].restrictions[0].concern).toMatch(/visa refusal/);
+  });
+
   it("skips visa for domestic trips", async () => {
     const r = await runFit(["Seattle"], { kind: "month", month: 8 }, profile, () => {});
     expect(r.candidates[0].visa).toBeNull();
@@ -130,7 +213,7 @@ describe("withConfirmedDestination", () => {
   beforeEach(() => setDbForTests(openDb(":memory:")));
   const place = { query: "Lisbon", name: "Lisbon, Portugal", lat: 38.7, lng: -9.1, countryCode: "PT" };
   const timing = { kind: "month" as const, month: 5 };
-  const dest = { candidates: ["Lisbon"], timing, result: null };
+  const dest = { candidates: ["Lisbon"], timing, travelDocs: null, result: null };
 
   it("first confirmation unlocks interests", () => {
     const t = createTrip();

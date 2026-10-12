@@ -6,6 +6,7 @@ import type { Profile, Tolerance } from "@/lib/schemas";
 import { COUNTRIES, countryName } from "@/lib/countries";
 import { cToF, fToC } from "@/lib/units";
 import { saveProfileAction } from "@/app/profile/actions";
+import { TravelDocsEditor } from "./TravelDocsEditor";
 
 export const DEFAULT_PROFILE: Profile = {
   homeCity: "",
@@ -22,6 +23,7 @@ export const DEFAULT_PROFILE: Profile = {
   travelers: { type: "partner", kidsAges: [], groupSize: 2 },
   pace: 3,
   units: "F",
+  travelDocs: { residencePermits: [], visasHeld: [], restrictions: "", avoidAdvanceVisa: false },
 };
 
 const TOLERANCE_LABELS: Record<Tolerance, string> = {
@@ -294,6 +296,14 @@ export function ProfileForm({ initial, next }: { initial: Profile | null; next?:
             <span>Packed</span>
           </div>
         </Field>
+      </section>
+
+      <section className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-label="Travel documents and restrictions">
+        <div>
+          <h2 className="font-medium">Travel documents &amp; restrictions <span className="font-normal text-slate-500">(optional)</span></h2>
+          <p className="text-xs text-slate-500">Used alongside your passport for visa checks. We&apos;ll confirm these before each trip&apos;s research.</p>
+        </div>
+        <TravelDocsEditor value={p.travelDocs} onChange={(travelDocs) => set({ travelDocs })} passports={p.passports} />
       </section>
 
       <div className="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">

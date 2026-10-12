@@ -25,6 +25,7 @@ export async function confirmDestinationAction(input: z.input<typeof ConfirmInpu
   const { state, phase } = withConfirmedDestination(trip, confirmed, {
     candidates: dest.candidates,
     timing: dest.timing,
+    travelDocs: dest.travelDocs,
     result: dest.result,
   });
   const route = stops.length ? ` + ${stops.length} stop${stops.length > 1 ? "s" : ""}` : "";

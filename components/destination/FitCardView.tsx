@@ -29,6 +29,18 @@ const VISA_TONE: Record<VisaStatus, string> = {
   not_allowed: "text-rose-700",
   unknown: "text-amber-700",
 };
+const DOC_EFFECT = {
+  grants_entry: "Gets you in",
+  eases_entry: "Makes entry easier",
+  no_effect: "Doesn't help here",
+  unknown: "Unclear — check with the embassy",
+} as const;
+const IMPACT = {
+  blocker: { text: "Blocker", cls: "bg-rose-100 text-rose-900" },
+  caution: { text: "Caution", cls: "bg-amber-100 text-amber-900" },
+  ok: { text: "OK", cls: "bg-emerald-100 text-emerald-900" },
+  unknown: { text: "Unclear", cls: "bg-slate-100 text-slate-700" },
+} as const;
 const LEVEL = { low: "Low", moderate: "Moderate", high: "High", very_high: "Very high" } as const;
 const SEASON = { peak: "Peak season", shoulder: "Shoulder season", off: "Off-season" } as const;
 
@@ -147,8 +159,12 @@ export function FitCardView({
           <>
             <p className={`text-sm font-medium ${VISA_TONE[card.visa.best.status]}`}>
               {VISA_TEXT[card.visa.best.status]}
-              {card.visa.perPassport.length > 1 && (
-                <span className="font-normal text-slate-500"> (on your {countryName(card.visa.best.passport)} passport)</span>
+              {card.visa.best.via ? (
+                <span className="font-normal text-slate-500"> (with your {card.visa.best.via})</span>
+              ) : (
+                card.visa.perPassport.length > 1 && (
+                  <span className="font-normal text-slate-500"> (on your {countryName(card.visa.best.passport)} passport)</span>
+                )
               )}
             </p>
             <ul className="space-y-1 text-sm text-slate-700">
@@ -162,6 +178,16 @@ export function FitCardView({
                 </li>
               ))}
             </ul>
+            {card.visa.otherDocuments.length > 0 && (
+              <ul className="space-y-1 text-sm text-slate-700" aria-label="Your other documents">
+                {card.visa.otherDocuments.map((o) => (
+                  <li key={o.document}>
+                    <span className="font-medium">{o.document}: </span>
+                    {DOC_EFFECT[o.effect]}. {o.notes} <SourceLinks sources={o.sources} label="src" />
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
               Confidence: {card.visa.confidence}. Entry rules change — always verify with the{" "}
               {card.visa.officialUrl ? (
@@ -181,6 +207,20 @@ export function FitCardView({
           <p className="text-sm text-slate-600">Domestic trip — no visa needed.</p>
         )}
       </section>
+
+      {card.restrictions.length > 0 && (
+        <section className="space-y-1.5" aria-label="Your restrictions">
+          <h4 className="text-sm font-medium">⚠️ Your restrictions</h4>
+          <ul className="space-y-1.5 text-sm">
+            {card.restrictions.map((r) => (
+              <li key={r.concern}>
+                <span className={`mr-1 rounded px-1.5 py-0.5 text-xs font-medium ${IMPACT[r.impact].cls}`}>{IMPACT[r.impact].text}</span>
+                <span className="font-medium">{r.concern}</span> — {r.notes} <SourceLinks sources={r.sources} label="src" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="space-y-1 border-t border-slate-100 pt-3">
         <h4 className="text-sm font-medium">Bottom line</h4>

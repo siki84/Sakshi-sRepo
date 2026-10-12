@@ -3,17 +3,40 @@ import { geocode } from "./geo/nominatim";
 import { getClimateNormals, getForecast } from "./weather/openMeteo";
 import { LABEL_TEXT, scoreWeather } from "./weather/score";
 import { forecastWindow, isoDay, monthsOf } from "./timing";
-import { describeProfile } from "./profileText";
+import { describeDocList, describeProfile, describeTravelDocs } from "./profileText";
 import { runStructured, type ProgressFn, type SearchResult } from "./ai/client";
 import { AlternativesAi, ComparisonAi, FitResearchAi } from "./ai/schemas";
 import { RESEARCH_SYSTEM, alternativesPrompt, comparisonPrompt, fitResearchPrompt } from "./ai/prompts/fit";
 import { verifiedSources } from "./ai/sources";
-import type { Climate, FitCard, FitLabel, FitResult, Place, Profile, Timing, VisaStatus, WeatherFit } from "./schemas";
+import { EMPTY_TRAVEL_DOCS } from "./schemas";
+import type { Climate, FitCard, FitLabel, FitResult, Place, Profile, Timing, TravelDocs, VisaStatus, WeatherFit } from "./schemas";
 
 const RANK: Record<FitLabel, number> = { poor: 0, mixed: 1, good: 2, great: 3 };
 const VISA_PREFERENCE: VisaStatus[] = ["visa_free", "eta", "visa_on_arrival", "evisa", "visa_required", "not_allowed", "unknown"];
+/** Statuses that mean applying for a visa before travel. */
+const ADVANCE_VISA: VisaStatus[] = ["evisa", "visa_required"];
+const byPreference = (a: VisaStatus, b: VisaStatus) => VISA_PREFERENCE.indexOf(a) - VISA_PREFERENCE.indexOf(b);
+
+export type FitCheckOpts = {
+  domestic: boolean;
+  passports: string[];
+  weatherLabel: FitLabel | null;
+  docCount: number;
+  hasRestrictions: boolean;
+  avoidAdvanceVisa: boolean;
+};
+
+/** Easiest entry status across passports and any other document that grants/eases entry. */
+export function effectiveVisaStatus(d: FitResearchAi): VisaStatus | null {
+  if (!d.visa) return null;
+  const statuses = [
+    ...d.visa.perPassport.map((p) => p.status),
+    ...d.visa.otherDocuments.filter((o) => o.effect === "grants_entry" || o.effect === "eases_entry").map((o) => o.status),
+  ];
+  return statuses.sort(byPreference)[0] ?? "unknown";
+}
 const FIT_CACHE_DAYS = 30;
-const RESEARCH_VERSION = 1; // bump when prompts/schemas change meaningfully
+const RESEARCH_VERSION = 2; // bump when prompts/schemas change meaningfully
 
 export class UserFacingError extends Error {}
 
@@ -23,7 +46,7 @@ export const isGoodFit = (c: FitCard) => c.overall.label === "great" || c.overal
 export function checkFitResearch(
   d: FitResearchAi,
   ctx: { searchResults: Map<string, SearchResult> },
-  opts: { domestic: boolean; passports: string[]; weatherLabel: FitLabel | null },
+  opts: FitCheckOpts,
 ): string[] {
   const problems: string[] = [];
   if (!verifiedSources(d.season.sourceUrls, ctx.searchResults).length) {
@@ -43,6 +66,19 @@ export function checkFitResearch(
     if (!anySourced) problems.push("visa needs at least one source URL that came from your web searches");
     const allBlocked = d.visa.perPassport.length > 0 && d.visa.perPassport.every((p) => p.status === "not_allowed");
     if (allBlocked && d.overall.label !== "poor") problems.push('overall.label must be "poor" when entry is not allowed');
+    if (d.visa.otherDocuments.length !== opts.docCount) {
+      problems.push(`visa.otherDocuments must have exactly ${opts.docCount} entries (one per document the traveler listed)`);
+    }
+    const easiest = effectiveVisaStatus(d);
+    if (opts.avoidAdvanceVisa && easiest && ADVANCE_VISA.includes(easiest) && d.overall.label !== "poor") {
+      problems.push('overall.label must be "poor": the traveler only wants places that need no visa applied for in advance');
+    }
+  }
+  if (opts.hasRestrictions && d.restrictions.length === 0) {
+    problems.push("restrictions must address each restriction/concern the traveler mentioned");
+  }
+  if (d.restrictions.some((r) => r.impact === "blocker") && d.overall.label !== "poor") {
+    problems.push('overall.label must be "poor" when one of the traveler\'s restrictions is a blocker');
   }
   if (opts.weatherLabel && RANK[d.overall.label] > RANK[opts.weatherLabel]) {
     problems.push(
@@ -68,14 +104,35 @@ export function buildCard(
           notes: p.notes,
           sources: verifiedSources(p.sourceUrls, search),
         }));
-        const best = [...perPassport].sort(
-          (a, b) => VISA_PREFERENCE.indexOf(a.status) - VISA_PREFERENCE.indexOf(b.status),
-        )[0];
+        // A document only counts toward "easiest entry" if a real source backs it up.
+        const otherDocuments = d.visa.otherDocuments.map((o) => {
+          const sources = verifiedSources(o.sourceUrls, search);
+          const unverified = !sources.length && o.effect !== "no_effect" && o.effect !== "unknown";
+          return {
+            document: o.document,
+            effect: unverified ? ("unknown" as const) : o.effect,
+            status: unverified ? ("unknown" as const) : o.status,
+            notes: unverified ? `${o.notes} (Couldn't verify this with a source — check with the embassy.)` : o.notes,
+            sources,
+          };
+        });
+        const bestPassport = [...perPassport].sort((a, b) => byPreference(a.status, b.status))[0];
+        const bestDoc = otherDocuments
+          .filter((o) => o.effect === "grants_entry" || o.effect === "eases_entry")
+          .sort((a, b) => byPreference(a.status, b.status))[0];
+        const best =
+          bestDoc && byPreference(bestDoc.status, bestPassport.status) < 0
+            ? { passport: bestPassport.passport, via: bestDoc.document, status: bestDoc.status, maxStay: null, leadTime: null, notes: bestDoc.notes }
+            : { passport: bestPassport.passport, via: null, status: bestPassport.status, maxStay: bestPassport.maxStay, leadTime: bestPassport.leadTime, notes: bestPassport.notes };
         const official = d.visa.officialUrl ? verifiedSources([d.visa.officialUrl], search)[0] : undefined;
-        const allSources = verifiedSources(d.visa.perPassport.flatMap((p) => p.sourceUrls), search);
+        const allSources = verifiedSources(
+          [...d.visa.perPassport.flatMap((p) => p.sourceUrls), ...d.visa.otherDocuments.flatMap((o) => o.sourceUrls)],
+          search,
+        );
         return {
-          best: { passport: best.passport, status: best.status, maxStay: best.maxStay, leadTime: best.leadTime, notes: best.notes },
+          best,
           perPassport,
+          otherDocuments,
           officialUrl: official?.url ?? null,
           confidence: d.visa.confidence,
           sources: allSources,
@@ -101,6 +158,17 @@ export function buildCard(
       .slice(0, 5)
       .map((e) => ({ name: e.name, kind: e.kind, impact: e.impact, when: e.when, detail: e.detail, sources: e.sources })),
     visa,
+    // Unsourced answers to the traveler's restrictions are kept (they matter) but marked unknown.
+    restrictions: d.restrictions.map((r) => {
+      const sources = verifiedSources(r.sourceUrls, search);
+      const unverified = !sources.length && r.impact !== "unknown" && r.impact !== "blocker";
+      return {
+        concern: r.concern,
+        impact: unverified ? ("unknown" as const) : r.impact,
+        notes: unverified ? `${r.notes} (Couldn't verify this with a source — check with the embassy.)` : r.notes,
+        sources,
+      };
+    }),
     overall: d.overall,
   };
 }
@@ -140,6 +208,15 @@ export async function researchFit(
 ): Promise<FitCard> {
   const { place, climate, weatherFit } = base;
   const domestic = Boolean(place.countryCode && profile.passports.includes(place.countryCode));
+  const docs: TravelDocs = profile.travelDocs ?? EMPTY_TRAVEL_DOCS;
+  const checkOpts: FitCheckOpts = {
+    domestic,
+    passports: profile.passports,
+    weatherLabel: weatherFit?.label ?? null,
+    docCount: describeDocList(docs).length,
+    hasRestrictions: docs.restrictions.trim().length > 0,
+    avoidAdvanceVisa: docs.avoidAdvanceVisa,
+  };
   const key = cacheKey("fit", {
     v: RESEARCH_VERSION,
     place: [place.name, place.lat.toFixed(2), place.lng.toFixed(2)],
@@ -158,6 +235,10 @@ export async function researchFit(
         weatherFit,
         domestic,
         passports: profile.passports,
+        docsText: describeTravelDocs(docs),
+        docCount: checkOpts.docCount,
+        hasRestrictions: checkOpts.hasRestrictions,
+        avoidAdvanceVisa: docs.avoidAdvanceVisa,
         today: isoDay(new Date()),
       }) + (profile.units === "C" ? "\nWrite any temperatures in °C." : "");
     const { data, searchResults } = await runStructured({
@@ -168,9 +249,8 @@ export async function researchFit(
       webSearch: { maxUses: 8 },
       effort: "medium",
       onProgress: emit,
-      fixtureInput: { place, domestic, passports: profile.passports, weatherLabel: weatherFit?.label ?? null },
-      check: (d, ctx) =>
-        checkFitResearch(d, ctx, { domestic, passports: profile.passports, weatherLabel: weatherFit?.label ?? null }),
+      fixtureInput: { place, docs: describeDocList(docs), restrictions: docs.restrictions, ...checkOpts },
+      check: (d, ctx) => checkFitResearch(d, ctx, checkOpts),
     });
     return buildCard(data, searchResults, base);
   });
@@ -216,6 +296,7 @@ export async function findAlternatives(
     system: RESEARCH_SYSTEM,
     prompt: alternativesPrompt({
       profileText: describeProfile(profile),
+      docsText: describeTravelDocs(profile.travelDocs ?? EMPTY_TRAVEL_DOCS),
       timing,
       original: original.length
         ? original.map((c) => ({ name: c.place.name, why: c.overall.summary }))

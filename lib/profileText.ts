@@ -1,5 +1,5 @@
 import { countryName } from "./countries";
-import type { Profile } from "./schemas";
+import type { Profile, TravelDocs } from "./schemas";
 import { formatTemp } from "./units";
 
 const TOL = { love: "loves", ok: "is fine with", dislike: "dislikes", hate: "wants to avoid" } as const;
@@ -24,4 +24,25 @@ export function describeProfile(p: Profile): string {
     `Pace: ${PACE[p.pace]}`,
     `Weather: ideal daytime highs ${T(w.idealMinF)}–${T(w.idealMaxF)}; ${TOL[w.heat]} hotter weather, ${TOL[w.cold]} colder weather, ${TOL[w.humidity]} humidity, ${TOL[w.rain]} rain.${w.notes ? ` Notes: "${w.notes}"` : ""}`,
   ].join("\n");
+}
+
+/** Travel documents beyond the passport, one line each (empty string if none). */
+export function describeDocList(d: TravelDocs): string[] {
+  return [
+    ...d.residencePermits.map((c) => `Residence permit: ${countryName(c)} (${c})`),
+    ...d.visasHeld.map(
+      (v) => `Valid ${v.kind} visa issued by ${countryName(v.country)} (${v.country})${v.expires ? `, expires ${v.expires}` : ""}`,
+    ),
+  ];
+}
+
+export function describeTravelDocs(d: TravelDocs): string {
+  const docs = describeDocList(d);
+  return [
+    docs.length ? `Other travel documents:\n${docs.map((x) => `- ${x}`).join("\n")}` : "Other travel documents: none",
+    d.restrictions.trim() ? `Restrictions/concerns the traveler mentioned: "${d.restrictions.trim()}"` : "Restrictions/concerns: none mentioned",
+    d.avoidAdvanceVisa ? "Preference: only destinations they can enter WITHOUT applying for a visa in advance (visa-free, ETA, or visa on arrival)." : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

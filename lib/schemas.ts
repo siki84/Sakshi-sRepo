@@ -33,6 +33,29 @@ export const WeatherPrefsSchema = z
   });
 export type WeatherPrefs = z.infer<typeof WeatherPrefsSchema>;
 
+export const VisaHeldSchema = z.object({
+  country: z.string().length(2), // issuing country, e.g. US for a US B1/B2 visa
+  kind: z.enum(["tourist", "business", "student", "work", "transit", "other"]),
+  expires: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .default(null),
+});
+export type VisaHeld = z.infer<typeof VisaHeldSchema>;
+
+/** Things beyond the passport that change what's possible at a border. */
+export const TravelDocsSchema = z.object({
+  residencePermits: z.array(z.string().length(2)).max(10).default([]), // green card, Schengen permit, UK BRP…
+  visasHeld: z.array(VisaHeldSchema).max(10).default([]),
+  /** Free text: past overstays/refusals, criminal record, passport stamps, vaccinations, traveling with a minor… */
+  restrictions: z.string().max(800).default(""),
+  /** Only consider places enterable without applying for a visa in advance. */
+  avoidAdvanceVisa: z.boolean().default(false),
+});
+export type TravelDocs = z.infer<typeof TravelDocsSchema>;
+export const EMPTY_TRAVEL_DOCS: TravelDocs = { residencePermits: [], visasHeld: [], restrictions: "", avoidAdvanceVisa: false };
+
 export const ProfileSchema = z.object({
   homeCity: z.string().trim().min(1, "Enter your home city"),
   passports: z.array(z.string().length(2)).min(1, "Add at least one passport"), // ISO 3166-1 alpha-2
@@ -44,6 +67,7 @@ export const ProfileSchema = z.object({
   }),
   pace: z.number().int().min(1).max(5), // 1 = very relaxed, 5 = packed
   units: z.enum(["F", "C"]).default("F"),
+  travelDocs: TravelDocsSchema.default(() => ({ ...EMPTY_TRAVEL_DOCS })),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
@@ -164,6 +188,8 @@ export const FitCardSchema = z.object({
     .object({
       best: z.object({
         passport: z.string(),
+        /** Set when another document (e.g. "your US visa") gives the easiest entry. */
+        via: z.string().nullable().default(null),
         status: VisaStatus,
         maxStay: z.string().nullable(),
         leadTime: z.string().nullable(),
@@ -179,11 +205,33 @@ export const FitCardSchema = z.object({
           sources: z.array(SourceRef),
         }),
       ),
+      otherDocuments: z
+        .array(
+          z.object({
+            document: z.string(),
+            effect: z.enum(["grants_entry", "eases_entry", "no_effect", "unknown"]),
+            status: VisaStatus,
+            notes: z.string(),
+            sources: z.array(SourceRef),
+          }),
+        )
+        .default([]),
       officialUrl: z.string().nullable(),
       confidence: z.enum(["high", "medium", "low"]),
       sources: z.array(SourceRef),
     })
     .nullable(),
+  /** Answers to the traveler's own stated restrictions/concerns. */
+  restrictions: z
+    .array(
+      z.object({
+        concern: z.string(),
+        impact: z.enum(["blocker", "caution", "ok", "unknown"]),
+        notes: z.string(),
+        sources: z.array(SourceRef),
+      }),
+    )
+    .default([]),
   overall: z.object({ label: FitLabel, summary: z.string() }),
 });
 export type FitCard = z.infer<typeof FitCardSchema>;
@@ -201,6 +249,8 @@ export type FitResult = z.infer<typeof FitResultSchema>;
 export const DestinationStateSchema = z.object({
   candidates: z.array(z.string()),
   timing: TimingSchema,
+  /** Travel documents/restrictions the traveler confirmed for this trip before research ran. */
+  travelDocs: TravelDocsSchema.nullable().default(null),
   result: FitResultSchema.nullable(),
   confirmed: z
     .object({

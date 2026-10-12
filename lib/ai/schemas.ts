@@ -45,11 +45,32 @@ export const FitResearchAi = z.object({
           sourceUrls: Urls,
         }),
       ),
+      otherDocuments: z
+        .array(
+          z.object({
+            document: z.string().describe('The traveler\'s document, as listed, e.g. "US tourist visa" or "Schengen residence permit (DE)"'),
+            effect: z.enum(["grants_entry", "eases_entry", "no_effect", "unknown"]),
+            status: VisaStatus.describe("Entry status when relying on this document (unknown if it has no effect)"),
+            notes: z.string().describe("Conditions, e.g. visa must be valid for the whole stay, multiple-entry only"),
+            sourceUrls: Urls,
+          }),
+        )
+        .describe("One entry per residence permit / visa the traveler listed; empty if they listed none"),
       officialUrl: z.string().nullable().describe("Official government entry-requirements page, if search returned one"),
       confidence: z.enum(["high", "medium", "low"]),
     })
     .nullable()
     .describe("null only when told the trip is domestic"),
+  restrictions: z
+    .array(
+      z.object({
+        concern: z.string().describe("The traveler's stated restriction or concern, briefly"),
+        impact: z.enum(["blocker", "caution", "ok", "unknown"]),
+        notes: z.string().describe("What it means for entering/visiting this destination, and what to do"),
+        sourceUrls: Urls,
+      }),
+    )
+    .describe("One entry per restriction/concern the traveler listed; empty if they listed none"),
   overall: z.object({
     label: FitLabel,
     summary: z.string().describe("2 sentences: the honest bottom line for this traveler"),

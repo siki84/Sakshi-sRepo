@@ -3,7 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Progress } from "@/lib/ai/client";
-import type { DestinationState, FitCard, FitResult, Timing } from "@/lib/schemas";
+import type { DestinationState, FitCard, FitResult, Timing, TravelDocs } from "@/lib/schemas";
+import { countryName } from "@/lib/countries";
+import { TravelDocsEditor, summarizeTravelDocs } from "../TravelDocsEditor";
 import { MONTHS, validateTiming } from "@/lib/timing";
 import { postSse } from "@/lib/sseClient";
 import { confirmDestinationAction } from "@/app/trip/[id]/actions";
@@ -21,10 +23,14 @@ export function DestinationStep({
   tripId,
   initial,
   units,
+  passports,
+  profileDocs,
 }: {
   tripId: string;
   initial: DestinationState | null;
   units: "F" | "C";
+  passports: string[];
+  profileDocs: TravelDocs;
 }) {
   const router = useRouter();
   const [a, setA] = useState(initial?.candidates[0] ?? "");
@@ -39,15 +45,31 @@ export function DestinationStep({
   const [stopDraft, setStopDraft] = useState("");
   const [confirming, startConfirm] = useTransition();
   const abort = useRef<AbortController | null>(null);
+  // Entry details are confirmed once per trip before research runs.
+  const [docs, setDocs] = useState<TravelDocs>(initial?.travelDocs ?? profileDocs);
+  const [docsConfirmed, setDocsConfirmed] = useState(Boolean(initial?.travelDocs));
+  const [askingDocs, setAskingDocs] = useState(false);
+  const [saveDocsToProfile, setSaveDocsToProfile] = useState(true);
+  const docsBeforeEdit = useRef<TravelDocs>(docs);
+  const openDocs = () => {
+    docsBeforeEdit.current = docs;
+    setAskingDocs(true);
+  };
 
   const confirmedName = initial?.confirmed?.place.name ?? null;
 
-  async function run(mode: "full" | "alternatives") {
+  async function run(mode: "full" | "alternatives", confirmedDocs?: TravelDocs) {
     const candidates = [a, b].map((s) => s.trim()).filter(Boolean);
     if (!candidates.length) return setError("Enter at least one destination");
     const te = validateTiming(timing);
     if (te) return setError(te);
     setError(null);
+    if (mode === "full" && !docsConfirmed && !confirmedDocs) {
+      openDocs(); // ask about other visas/restrictions before the first research run
+      return;
+    }
+    const travelDocs = confirmedDocs ?? docs;
+    const saveToProfile = Boolean(confirmedDocs) && saveDocsToProfile;
     setRunning(true);
     setProgress([]);
     if (mode === "full") {
@@ -58,7 +80,7 @@ export function DestinationStep({
     try {
       await postSse(
         `/api/trips/${tripId}/fit`,
-        { candidates, timing, mode },
+        { candidates, timing, mode, travelDocs, saveToProfile },
         (event, data) => {
           if (event === "progress") setProgress((p) => [...p, data as Progress]);
           else if (event === "result") setResult(data as FitResult);
@@ -187,7 +209,63 @@ export function DestinationStep({
           )}
         </fieldset>
 
-        <div className="flex flex-wrap items-center gap-3">
+        {docsConfirmed && !askingDocs && (
+          <p className="text-sm text-slate-600" data-testid="entry-summary">
+            <span className="font-medium">Entry details:</span> {passports.map(countryName).join(" + ")} passport
+            {passports.length > 1 ? "s" : ""} · {summarizeTravelDocs(docs)}{" "}
+            <button type="button" onClick={openDocs} className="underline">
+              Edit
+            </button>
+          </p>
+        )}
+
+        {askingDocs && (
+          <section
+            className="space-y-4 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200"
+            aria-label="Visa and travel restrictions check"
+          >
+            <div>
+              <h3 className="font-medium">Before we research: anything else that affects where you can go?</h3>
+              <p className="text-sm text-slate-700">
+                We&apos;ll check entry rules for your {passports.map(countryName).join(" and ")} passport
+                {passports.length > 1 ? "s" : ""}. Other visas, residence permits, or restrictions can change the answer.
+              </p>
+            </div>
+            <TravelDocsEditor value={docs} onChange={setDocs} passports={passports} />
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={saveDocsToProfile} onChange={(e) => setSaveDocsToProfile(e.target.checked)} />
+              Also save these to my profile for future trips
+            </label>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={running}
+                onClick={() => {
+                  setDocsConfirmed(true);
+                  setAskingDocs(false);
+                  run("full", docs);
+                }}
+                className="rounded-lg bg-slate-900 px-5 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+              >
+                Looks right — start research
+              </button>
+              {docsConfirmed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDocs(docsBeforeEdit.current);
+                    setAskingDocs(false);
+                  }}
+                  className="text-sm text-slate-600 underline"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        <div className={`flex flex-wrap items-center gap-3 ${askingDocs ? "hidden" : ""}`}>
           <button
             disabled={running}
             className="rounded-lg bg-slate-900 px-5 py-2 text-white hover:bg-slate-700 disabled:opacity-50"

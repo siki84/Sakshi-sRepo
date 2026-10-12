@@ -12,6 +12,7 @@ const valid: Profile = {
   travelers: { type: "family", kidsAges: [4, 9], groupSize: 4 },
   pace: 3,
   units: "F",
+  travelDocs: { residencePermits: [], visasHeld: [], restrictions: "", avoidAdvanceVisa: false },
 };
 
 beforeEach(() => setDbForTests(openDb(":memory:")));

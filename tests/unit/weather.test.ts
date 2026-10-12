@@ -44,6 +44,12 @@ describe("scoreWeather", () => {
     expect(bad.join(" | ")).toMatch(/Rain on about 19 days/);
   });
 
+  it("treats out-of-range weather the traveler said is fine as neutral, not negative", () => {
+    const r = scoreWeather(climate({ avgHighF: 58 }), prefs); // cold: "ok"
+    expect(r.reasons[0].tone).toBe("neutral");
+    expect(r.reasons[0].text).toMatch(/you said that's fine/);
+  });
+
   it("does not penalize heat for someone who loves it", () => {
     const r = scoreWeather(climate({ avgHighF: 92 }), { ...prefs, heat: "love" });
     expect(r.score).toBe(100);

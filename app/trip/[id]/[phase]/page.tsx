@@ -41,7 +41,13 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
       </div>
       <WizardStepper tripId={id} current={phase as PhaseKey} reached={trip.phase} stale={trip.state.stale} />
       {phase === "destination" ? (
-        <DestinationStep tripId={id} initial={trip.state.destination ?? null} units={profile.units} />
+        <DestinationStep
+          tripId={id}
+          initial={trip.state.destination ?? null}
+          units={profile.units}
+          passports={profile.passports}
+          profileDocs={profile.travelDocs}
+        />
       ) : (
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-lg font-medium">

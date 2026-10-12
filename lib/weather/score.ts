@@ -24,6 +24,10 @@ export const LABEL_TEXT: Record<FitLabel, string> = {
   poor: "Poor fit",
 };
 
+/** Only call something a negative if the traveler actually minds it. */
+const toneFor = (t: Tolerance, small: boolean): "good" | "bad" | "neutral" =>
+  t === "love" ? "good" : small || t === "ok" ? "neutral" : "bad";
+
 const feel = (t: Tolerance) =>
   ({ love: "you love that", ok: "you said that's fine", dislike: "you dislike that", hate: "you want to avoid that" })[t];
 
@@ -39,13 +43,13 @@ export function scoreWeather(c: Climate, prefs: WeatherPrefs, units: "F" | "C" =
   if (over > 0) {
     penalty += over * 2 * WEIGHT[prefs.heat];
     reasons.push({
-      tone: prefs.heat === "love" || over <= 3 ? "neutral" : "bad",
+      tone: toneFor(prefs.heat, over <= 3),
       text: `Highs around ${T(c.avgHighF)} — ${over <= 3 ? "just above" : "above"} your ${range} range (${feel(prefs.heat)})`,
     });
   } else if (under > 0) {
     penalty += under * 2 * WEIGHT[prefs.cold];
     reasons.push({
-      tone: prefs.cold === "love" || under <= 3 ? "neutral" : "bad",
+      tone: toneFor(prefs.cold, under <= 3),
       text: `Highs around ${T(c.avgHighF)} — ${under <= 3 ? "just below" : "below"} your ${range} range (${feel(prefs.cold)})`,
     });
   } else {
@@ -68,7 +72,7 @@ export function scoreWeather(c: Climate, prefs: WeatherPrefs, units: "F" | "C" =
     penalty += mugginess * 2.5 * WEIGHT[prefs.humidity];
     const word = c.dewPointF !== null && c.dewPointF >= 70 ? "Oppressively humid" : mugginess > 5 ? "Humid and sticky" : "A bit humid";
     reasons.push({
-      tone: prefs.humidity === "love" || mugginess <= 3 ? "neutral" : "bad",
+      tone: toneFor(prefs.humidity, mugginess <= 3),
       text: `${word}${c.dewPointF !== null ? ` (dew point ${T(c.dewPointF)})` : ""} — ${feel(prefs.humidity)}`,
     });
   } else {
@@ -81,7 +85,7 @@ export function scoreWeather(c: Climate, prefs: WeatherPrefs, units: "F" | "C" =
   if (extraRain > 0) {
     penalty += extraRain * 2.5 * WEIGHT[prefs.rain];
     reasons.push({
-      tone: prefs.rain === "love" || extraRain <= 2 ? "neutral" : "bad",
+      tone: toneFor(prefs.rain, extraRain <= 2),
       text: `Rain on about ${rainy} days a month — ${feel(prefs.rain)}`,
     });
   } else {

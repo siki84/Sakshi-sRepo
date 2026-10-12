@@ -6,11 +6,13 @@ import type { Fixture } from "./index";
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 export function fitResearchFixture(input: unknown): Fixture {
-  const { place, domestic, passports, weatherLabel } = input as {
+  const { place, domestic, passports, weatherLabel, docs, restrictions } = input as {
     place: Place;
     domestic: boolean;
     passports: string[];
     weatherLabel: FitLabel | null;
+    docs: string[];
+    restrictions: string;
   };
   const s = slug(place.name);
   const urls = {
@@ -64,9 +66,26 @@ export function fitResearchFixture(input: unknown): Fixture {
               notes: "[Sample data] Passport valid 6 months beyond stay.",
               sourceUrls: [urls.visa],
             })),
+            otherDocuments: docs.map((doc) => ({
+              document: doc,
+              effect: "eases_entry",
+              status: "visa_free",
+              notes: "[Sample data] Holders may qualify for simplified entry.",
+              sourceUrls: [urls.visa],
+            })),
             officialUrl: urls.visa,
             confidence: "medium",
           },
+      restrictions: restrictions.trim()
+        ? [
+            {
+              concern: restrictions.trim().slice(0, 80),
+              impact: "caution",
+              notes: "[Sample data] Declare it honestly on the arrival form; check with the embassy if unsure.",
+              sourceUrls: [urls.visa],
+            },
+          ]
+        : [],
       overall: {
         label: weatherLabel ?? "mixed",
         summary: `[Sample data] Overall ${weatherLabel ?? "unknown"} fit, mostly driven by weather.`,
