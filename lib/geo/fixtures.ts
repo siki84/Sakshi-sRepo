@@ -30,3 +30,13 @@ export function mockGeocode(query: string): Place | null {
   const title = key.replace(/\b\w/g, (c) => c.toUpperCase());
   return { query, name: title, lat: ((h % 12000) / 100) - 60, lng: (((h >> 8) % 34000) / 100) - 170, countryCode: null };
 }
+
+/** Bounded lookups (activity verification): most names "verify" near the center; some don't. */
+export function mockGeocodeWithin(query: string, w: { lat: number; lng: number; radiusDeg: number }): Place | null {
+  let h = 0;
+  for (const c of query.toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  if (h % 6 === 0 || query.toLowerCase().includes("unverifiable")) return null;
+  const dLat = (((h % 1000) / 1000) - 0.5) * w.radiusDeg * 0.6;
+  const dLng = ((((h >> 10) % 1000) / 1000) - 0.5) * w.radiusDeg * 0.6;
+  return { query, name: query.split(",")[0], lat: w.lat + dLat, lng: w.lng + dLng, countryCode: null };
+}

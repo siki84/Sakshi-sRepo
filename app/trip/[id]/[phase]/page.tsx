@@ -5,6 +5,7 @@ import { PHASES, type PhaseKey } from "@/lib/schemas";
 import { WizardStepper } from "@/components/WizardStepper";
 import { DestinationStep } from "@/components/destination/DestinationStep";
 import { InterestsStep } from "@/components/interests/InterestsStep";
+import { DiscoverStep } from "@/components/discover/DiscoverStep";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
         <h1 className="text-xl font-semibold">{trip.title}</h1>
       </div>
       <WizardStepper tripId={id} current={phase as PhaseKey} reached={trip.phase} stale={trip.state.stale} />
-      {trip.state.stale.includes(phase) && (
+      {trip.state.stale.includes(phase) && phase !== "discover" && (
         <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900" role="status">
           ⚠︎ An earlier step changed since this one was made — refresh it to reflect your latest choices.
         </p>
@@ -60,6 +61,15 @@ export default async function PhasePage({ params }: { params: Promise<{ id: stri
           initial={trip.state.interests ?? null}
           family={profile.travelers.type === "family"}
           destinationName={trip.state.destination?.confirmed?.place.name ?? null}
+        />
+      ) : phase === "discover" && trip.state.interests && trip.state.destination?.confirmed ? (
+        <DiscoverStep
+          tripId={id}
+          initial={trip.state.discover ?? null}
+          interests={trip.state.interests}
+          center={trip.state.destination.confirmed.place}
+          placeName={trip.state.destination.confirmed.place.name}
+          stale={trip.state.stale.includes("discover")}
         />
       ) : (
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">

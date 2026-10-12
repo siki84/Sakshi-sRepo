@@ -48,3 +48,14 @@ export async function tripAtInterests(page: Page) {
   await page.getByRole("button", { name: "Confirm and pick interests →" }).click();
   await expect(page).toHaveURL(/\/interests$/);
 }
+
+/** …then picks interests and lands on discovery. */
+export async function tripAtDiscover(page: Page) {
+  await tripAtInterests(page);
+  const interests = page.getByRole("region", { name: "Interests" });
+  for (const chip of ["Hiking", "Museums & history", "Coffee shops"]) {
+    await interests.getByRole("button", { name: chip, exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Save and continue →" }).click();
+  await expect(page).toHaveURL(/\/discover$/);
+}

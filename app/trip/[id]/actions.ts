@@ -80,3 +80,35 @@ export async function saveInterestsAction(input: z.input<typeof InterestsInput>)
   revalidatePath(`/trip/${tripId}`, "layout");
   return { ok: true, interests };
 }
+
+const ActivityStatusInput = z.object({
+  tripId: z.string(),
+  activityId: z.string(),
+  status: z.enum(["kept", "removed", "none"]),
+});
+
+/** ❤️ keep / ✕ remove / restore an activity. */
+export async function setActivityStatusAction(input: z.input<typeof ActivityStatusInput>) {
+  const { tripId, activityId, status } = ActivityStatusInput.parse(input);
+  const trip = getTrip(tripId);
+  const d = trip?.state.discover;
+  if (!trip || !d || !d.pool.some((a) => a.id === activityId)) return { ok: false as const };
+  const kept = d.kept.filter((x) => x !== activityId);
+  const removed = d.removed.filter((x) => x !== activityId);
+  if (status === "kept") kept.push(activityId);
+  if (status === "removed") removed.push(activityId);
+  // Length and plan were built from the old selection.
+  const stale = new Set(trip.state.stale);
+  if (trip.state.length) stale.add("length");
+  if (trip.state.plan) stale.add("plan");
+  updateTrip(tripId, { state: { discover: { ...d, kept, removed }, stale: [...stale] } });
+  return { ok: true as const };
+}
+
+export async function confirmDiscoveryAction(tripId: string) {
+  const trip = getTrip(tripId);
+  if (!trip?.state.discover?.pool.length) return { ok: false as const, error: "Run discovery first" };
+  updateTrip(tripId, { phase: Math.max(trip.phase, 4) });
+  revalidatePath(`/trip/${tripId}`, "layout");
+  return { ok: true as const };
+}

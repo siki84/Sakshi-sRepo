@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { fetchJson, isMockExternal } from "../http";
 import type { Place } from "../schemas";
-import { mockGeocode } from "./fixtures";
+import { mockGeocode, mockGeocodeWithin } from "./fixtures";
 
 type NominatimResult = {
   lat: string;
@@ -37,10 +37,18 @@ export function shortName(r: NominatimResult): string {
  * Geocode a free-text place. Results (including misses) are cached in SQLite.
  * `countryCodes` restricts results to those countries (used to verify activity coordinates).
  */
-export async function geocode(query: string, opts: { countryCodes?: string[] } = {}): Promise<Place | null> {
+export type GeocodeOpts = {
+  countryCodes?: string[];
+  /** Only accept results inside this box (used to verify activity locations). */
+  within?: { lat: number; lng: number; radiusDeg: number };
+};
+
+export async function geocode(query: string, opts: GeocodeOpts = {}): Promise<Place | null> {
   const q = query.trim();
   if (!q) return null;
-  const cacheKey = `${q.toLowerCase()}|${(opts.countryCodes ?? []).join(",")}`;
+  const w = opts.within;
+  const box = w ? [w.lng - w.radiusDeg, w.lat + w.radiusDeg, w.lng + w.radiusDeg, w.lat - w.radiusDeg].map((n) => n.toFixed(3)) : null;
+  const cacheKey = `${q.toLowerCase()}|${(opts.countryCodes ?? []).join(",")}|${box?.join(",") ?? ""}`;
   const row = db().prepare("SELECT payload FROM geocode_cache WHERE query = ?").get(cacheKey) as
     | { payload: string }
     | undefined;
@@ -48,7 +56,7 @@ export async function geocode(query: string, opts: { countryCodes?: string[] } =
 
   let place: Place | null;
   if (isMockExternal()) {
-    place = mockGeocode(q);
+    place = w ? mockGeocodeWithin(q, w) : mockGeocode(q);
   } else {
     const params = new URLSearchParams({
       q,
@@ -58,6 +66,10 @@ export async function geocode(query: string, opts: { countryCodes?: string[] } =
       "accept-language": "en",
     });
     if (opts.countryCodes?.length) params.set("countrycodes", opts.countryCodes.join(",").toLowerCase());
+    if (box) {
+      params.set("viewbox", box.join(","));
+      params.set("bounded", "1");
+    }
     const results = await throttled(() =>
       fetchJson<NominatimResult[]>(`https://nominatim.openstreetmap.org/search?${params}`),
     );

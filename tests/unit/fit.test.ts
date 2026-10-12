@@ -226,7 +226,7 @@ describe("withConfirmedDestination", () => {
       ...t.state,
       destination: { ...dest, confirmed: { place, stops: [], timing } },
       interests: { chips: ["hiking"], custom: [], mix: { outdoors: 100, city: 0, food: 0, nightlife: 0, wellness: 0 }, requirements: [], rules: [], notices: [] },
-      discover: { x: 1 },
+      discover: { pool: [], kept: [], removed: [], researchedFor: { place: "", stops: [], batches: {} }, updatedAt: "" },
       plan: { x: 1 },
     };
     const r = withConfirmedDestination(t, { place: { ...place, name: "Porto, Portugal" }, stops: [], timing }, dest);

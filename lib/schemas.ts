@@ -85,7 +85,7 @@ export type SourceRef = z.infer<typeof SourceRef>;
 export const TripStateSchema = z.object({
   destination: z.lazy(() => DestinationStateSchema).optional(),
   interests: z.lazy(() => InterestsStateSchema).optional(),
-  discover: z.unknown().optional(),
+  discover: z.lazy(() => DiscoverStateSchema).optional(),
   length: z.unknown().optional(),
   plan: z.unknown().optional(),
   /** Phases whose inputs changed after they were produced. */
@@ -302,3 +302,51 @@ export const InterestsStateSchema = z.object({
   notices: z.array(z.string()).default([]),
 });
 export type InterestsState = z.infer<typeof InterestsStateSchema>;
+
+// ---------- Phase 3: discovery ----------
+
+export const BestTime = z.enum(["morning", "afternoon", "evening", "any"]);
+export type BestTime = z.infer<typeof BestTime>;
+
+export const ActivitySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  /** Chip key (catalog or custom). */
+  category: z.string(),
+  tag: z.enum(["must_see", "local_gem"]),
+  why: z.string(),
+  area: z.string(),
+  /** City/stop this belongs to (multi-city routes). */
+  city: z.string(),
+  durationHrs: z.number().min(0.25).max(12),
+  bestTime: BestTime,
+  setting: z.enum(["indoor", "outdoor", "mixed"]),
+  kidFriendly: z.boolean(),
+  /** 1–5: how strongly/consistently it's recommended across sources. */
+  buzz: z.number().int().min(1).max(5),
+  lat: z.number(),
+  lng: z.number(),
+  /** True when an independent geocoder confirmed the location near the destination. */
+  locationVerified: z.boolean(),
+  sources: z.array(SourceRef).min(1),
+  /** Set for results of "more like this". */
+  similarTo: z.string().nullable().default(null),
+  /** Research batch it came from ("must_see", a group, "stop:<city>", or "more"). */
+  batch: z.string().default(""),
+});
+export type Activity = z.infer<typeof ActivitySchema>;
+
+export const DiscoverStateSchema = z.object({
+  pool: z.array(ActivitySchema),
+  kept: z.array(z.string()),
+  removed: z.array(z.string()),
+  /** What the pool was researched for; used to refresh only what changed. */
+  researchedFor: z.object({
+    place: z.string(),
+    stops: z.array(z.string()),
+    /** "must_see" plus one key per group, each with the chips researched. */
+    batches: z.record(z.string(), z.array(z.string())),
+  }),
+  updatedAt: z.string(),
+});
+export type DiscoverState = z.infer<typeof DiscoverStateSchema>;
