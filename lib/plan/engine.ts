@@ -1,5 +1,5 @@
 import { haversineKm, type LatLng } from "../geo/haversine";
-import { DAY_TRIP_KM, HOURS_PER_DAY, dayTripGroups } from "../length";
+import { HOURS_PER_DAY, dayTripGroups } from "../length";
 import { hoursMix, rankActivities } from "../rank";
 import { isoDay } from "../timing";
 import type {
@@ -337,7 +337,9 @@ export function buildVariant(input: EngineInput, key: "frontload" | "easy"): Iti
       }
     });
     const rest = citySlots.filter((_, i) => !tripSlots.has(i));
-    const near = cityItems.filter((a) => !used.has(a.id) && haversineKm(a, city) <= DAY_TRIP_KM);
+    // Everything not on a dedicated day-trip day is grouped geographically below — far-out
+    // picks too (for spread-out places like islands, that's most of them).
+    const near = cityItems.filter((a) => !used.has(a.id));
     const capTotal = rest.reduce((s2, x) => s2 + x.cap, 0);
     const chosen: Activity[] = [];
     let hrs = 0;

@@ -439,7 +439,8 @@ export const ItinerarySchema = z.object({
   days: z.array(PlanDaySchema),
   /** Good ideas that didn't fit; available to add back. */
   optional: z.array(z.string()),
-  achievedMix: MixSchema,
+  /** Share of planned time per group (all zeros if nothing is scheduled yet). */
+  achievedMix: z.record(GroupSchema, z.number().int().min(0).max(100)),
   checks: z.array(RequirementCheckSchema),
 });
 export type Itinerary = z.infer<typeof ItinerarySchema>;

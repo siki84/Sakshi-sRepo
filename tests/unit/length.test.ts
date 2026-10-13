@@ -165,3 +165,18 @@ describe("computeLength (mock AI)", () => {
     expect(L.selectionIds).toHaveLength(8);
   });
 });
+
+describe("day-trip distance", () => {
+  it("is 20 km for compact cities and relative for spread-out regions", async () => {
+    const { dayTripThresholdKm } = await import("@/lib/length");
+    const city = [act(), act(), sintra()];
+    expect(dayTripThresholdKm(city, lisbon)).toBe(20);
+    const bali = { lat: -8.3405, lng: 115.092 };
+    const region = [
+      act({ lat: -8.5069, lng: 115.2625 }), // Ubud ~26 km
+      act({ lat: -8.6478, lng: 115.1385 }), // Canggu ~34 km
+      act({ lat: -8.8291, lng: 115.0849 }), // Uluwatu ~54 km
+    ];
+    expect(dayTripThresholdKm(region, bali)).toBeGreaterThan(45);
+  });
+});

@@ -144,6 +144,11 @@ export function PlanStep({
                     : "no checkable requirements"}
                 </p>
               </div>
+              {stops(v) === 0 && (
+                <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+                  None of your picks could be placed in this plan. Keep a few more on Discover, or try a different length.
+                </p>
+              )}
               <ol className="space-y-1 text-sm">
                 {v.days.map((d) => (
                   <li key={d.n} className="flex gap-2">

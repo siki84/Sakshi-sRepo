@@ -185,3 +185,41 @@ describe("buildVariant", () => {
     expect(out.days[full].sprawl).toBe(true); // Belém + Alfama on one day
   });
 });
+
+describe("spread-out destinations (islands, regions)", () => {
+  // Regression: a 3-day Bali plan scheduled nothing because every pick was >20 km from the
+  // center, so the mix came out all zeros and saving the plan failed.
+  const bali = { name: "Bali, Indonesia", lat: -8.3405, lng: 115.092 };
+  const at = (area: string, lat: number, lng: number, i: number, o: Partial<Activity> = {}) =>
+    act({ area, city: bali.name, lat: lat + i * 0.003, lng, category: "beaches", setting: "outdoor", ...o });
+  const pool = [
+    ...[0, 1, 2, 3].map((i) => at("Ubud", -8.5069, 115.2625, i, { category: "nature" })),
+    ...[0, 1, 2].map((i) => at("Canggu", -8.6478, 115.1385, i, { category: "coffee" })),
+    ...[0, 1].map((i) => at("Uluwatu", -8.8291, 115.0849, i)),
+  ];
+  const input: EngineInput = {
+    pool,
+    kept: pool.map((a) => a.id),
+    removed: [],
+    interests: interests({ chips: ["beaches", "nature", "coffee"], mix: { outdoors: 60, city: 0, food: 40, nightlife: 0, wellness: 0 } }),
+    days: 3,
+    startDate: null,
+    cities: [bali],
+    pace: 3,
+    climate: null,
+    forecast: null,
+  };
+
+  it("still schedules picks, grouped by area, with a valid mix", () => {
+    for (const key of ["frontload", "easy"] as const) {
+      const v = buildVariant(input, key);
+      const scheduled = v.days.flatMap(ids);
+      expect(scheduled.length).toBeGreaterThanOrEqual(4);
+      expect(Object.values(v.achievedMix).reduce((a, b) => a + b, 0)).toBe(100);
+      for (const d of v.days) {
+        const areas = new Set(ids(d).map((x) => pool.find((a) => a.id === x)!.area));
+        expect(areas.size).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+});

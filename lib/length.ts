@@ -20,11 +20,27 @@ const SAME_DAY_TRIP_KM = 15;
 
 type Center = { lat: number; lng: number };
 
+/**
+ * How far from its center something must be to count as a day trip. Normally DAY_TRIP_KM.
+ * But when fewer than a third of the picks are within that distance, the "center" isn't
+ * where the trip happens (an island or region like Bali), so "far" becomes relative:
+ * 1.5× the median distance of the picks.
+ */
+export function dayTripThresholdKm(items: Activity[], center: Center): number {
+  if (items.length < 3) return DAY_TRIP_KM;
+  const d = items.map((a) => haversineKm(a, center)).sort((x, y) => x - y);
+  const nearShare = d.filter((km) => km <= DAY_TRIP_KM).length / d.length;
+  if (nearShare >= 1 / 3) return DAY_TRIP_KM;
+  return Math.max(DAY_TRIP_KM, d[Math.floor(d.length / 2)] * 1.5);
+}
+
 /** Groups far-flung activities into day trips (one day each). */
 export function dayTripGroups(items: Activity[], centers: Map<string, Center>): Activity[][] {
+  const thresholds = new Map<string, number>();
+  for (const [city, c] of centers) thresholds.set(city, dayTripThresholdKm(items.filter((a) => a.city === city), c));
   const far = items.filter((a) => {
     const c = centers.get(a.city);
-    return c ? haversineKm(a, c) > DAY_TRIP_KM : false;
+    return c ? haversineKm(a, c) > (thresholds.get(a.city) ?? DAY_TRIP_KM) : false;
   });
   const groups: Activity[][] = [];
   for (const a of far) {
