@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sakshi's Site</title>
+  <meta name="description" content="A simple static website deployed on Vercel.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container nav">
+      <a href="#" class="logo">Sakshi</a>
+      <ul class="nav-links">
+        <li><a href="#about">About</a></li>
+        <li><a href="#projects">Projects</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Hi, I'm Sakshi 👋</h1>
+        <p class="tagline">Welcome to my little corner of the web.</p>
+        <a href="#contact" class="button">Get in touch</a>
+      </div>
+    </section>
+
+    <section id="about" class="section">
+      <div class="container">
+        <h2>About</h2>
+        <p>
+          This is a simple static webpage built with plain HTML and CSS.
+          Edit <code>index.html</code> to make it your own.
+        </p>
+      </div>
+    </section>
+
+    <section id="projects" class="section alt">
+      <div class="container">
+        <h2>Projects</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Project One</h3>
+            <p>A short description of something you've built.</p>
+          </article>
+          <article class="card">
+            <h3>Project Two</h3>
+            <p>Another project worth showing off.</p>
+          </article>
+          <article class="card">
+            <h3>Project Three</h3>
+            <p>Something you're working on right now.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="section">
+      <div class="container">
+        <h2>Contact</h2>
+        <p>Say hello at <a href="mailto:hello@example.com">hello@example.com</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>&copy; <span id="year"></span> Sakshi. Deployed on Vercel.</p>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
